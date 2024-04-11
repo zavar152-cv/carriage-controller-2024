@@ -63,17 +63,6 @@
             <version>12.3.1</version>
         </dependency>
         <dependency>
-            <groupId>eu.hansolo</groupId>
-            <artifactId>tilesfx</artifactId>
-            <version>17.1.17</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.openjfx</groupId>
-                    <artifactId>*</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-api</artifactId>
             <version>${junit.version}</version>
@@ -108,7 +97,7 @@
                         <id>default-cli</id>
                         <configuration>
                             <mainClass>
-                                ru.itmo.zavar.carriagecontroller2024/ru.itmo.zavar.carriagecontroller2024.HelloApplication
+                                ru.itmo.zavar.carriagecontroller/ru.itmo.zavar.carriagecontroller.HelloApplication
                             </mainClass>
                             <launcher>app</launcher>
                             <jlinkZipName>app</jlinkZipName>

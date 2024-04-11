@@ -1,4 +1,4 @@
-package ru.itmo.zavar.carriagecontroller2024;
+package ru.itmo.zavar.carriagecontroller;
 
 import javafx.fxml.FXML;
 import javafx.scene.control.Label;
