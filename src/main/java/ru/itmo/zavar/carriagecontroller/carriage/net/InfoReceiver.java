@@ -2,18 +2,12 @@ package ru.itmo.zavar.carriagecontroller.carriage.net;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
-import lombok.Setter;
-import lombok.SneakyThrows;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import ru.itmo.zavar.carriagecontroller.mqtt.CarriageAsyncClient;
 import ru.itmo.zavar.carriagecontroller.mqtt.pojo.CarriageInfo;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 public final class InfoReceiver {
     private final CarriageAsyncClient carriageAsyncClient;

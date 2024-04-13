@@ -9,7 +9,7 @@ import java.util.ArrayList;
 public class GoToCarriageAction extends CarriageAction<Float[]> {
 
     public GoToCarriageAction(Float[] actionArgument) {
-        super("GoToPosition", "...", actionArgument);
+        super("GoToPosition", "...", actionArgument, new CarriageCommand<Void>("reset_status"));
     }
 
     @Override

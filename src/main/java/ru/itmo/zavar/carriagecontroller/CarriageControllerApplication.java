@@ -1,23 +1,23 @@
 package ru.itmo.zavar.carriagecontroller;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
+import lombok.extern.log4j.Log4j2;
 import org.eclipse.paho.client.mqttv3.IMqttToken;
 import org.eclipse.paho.client.mqttv3.MqttException;
+import ru.itmo.zavar.carriagecontroller.carriage.ActionRunner;
 import ru.itmo.zavar.carriagecontroller.carriage.actions.CarriageAction;
 import ru.itmo.zavar.carriagecontroller.carriage.actions.GoToCarriageAction;
 import ru.itmo.zavar.carriagecontroller.carriage.net.CommandSender;
 import ru.itmo.zavar.carriagecontroller.carriage.net.InfoReceiver;
 import ru.itmo.zavar.carriagecontroller.mqtt.CarriageAsyncClient;
-import ru.itmo.zavar.carriagecontroller.mqtt.pojo.CarriageCommand;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.LinkedList;
 
+@Log4j2
 public class CarriageControllerApplication extends Application {
     @Override
     public void start(Stage stage) throws IOException {
@@ -28,20 +28,19 @@ public class CarriageControllerApplication extends Application {
         stage.show();
     }
 
-    private static InfoReceiver infoReceiver;
-
-    public static void main(String[] args) throws MqttException {
+    public static void main(String[] args) {
         //launch();
         try (CarriageAsyncClient client = new CarriageAsyncClient("tcp://localhost:25565", "CC-app", "carriage/commands", "carriage/info")) {
             IMqttToken mqttToken = client.connect();
             mqttToken.waitForCompletion();
-            infoReceiver = new InfoReceiver(client);
-            infoReceiver.addCarriageInfoChangeListener(newValue -> {
-                System.out.println(newValue.getCurrentPosition());
+            InfoReceiver infoReceiver = new InfoReceiver(client);
+            infoReceiver.addCurrentPositionChangeListener(newValue -> {
+                log.info("Position: {}", newValue);
             }, "MainPositionListener");
             CommandSender commandSender = new CommandSender(client);
             LinkedList<CarriageAction<?>> actions = getCarriageActions();
-            nextAction(actions, commandSender);
+            ActionRunner actionRunner = new ActionRunner(infoReceiver, commandSender, actions);
+            actionRunner.runAllActions();
             while (true) ;
         } catch (MqttException | InterruptedException e) {
             throw new RuntimeException(e);
@@ -64,33 +63,4 @@ public class CarriageControllerApplication extends Application {
         actions.add(goToCarriageAction6);
         return actions;
     }
-
-    private static void nextAction(LinkedList<CarriageAction<?>> actions, CommandSender commandSender) {
-        System.out.println("next action");
-        CarriageAction<?> popped = actions.pop();
-        popped.setOnActionComplete(infoReceiver, () -> {
-            try {
-                commandSender.send(new CarriageCommand<>("reset_status"));
-                System.out.println("on position");
-                Thread.sleep(500);
-                if (!actions.isEmpty())
-                    nextAction(actions, commandSender);
-                else
-                    System.out.println("task complete");
-            } catch (JsonProcessingException | MqttException | InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-        });
-
-        ArrayList<CarriageCommand<?>> commands = popped.toCommands(infoReceiver.getCurrentCarriageInfo());
-        commands.forEach(carriageCommand -> {
-            try {
-                System.out.println(carriageCommand.getCommand());
-                commandSender.send(carriageCommand);
-            } catch (JsonProcessingException | MqttException e) {
-                throw new RuntimeException(e);
-            }
-        });
-    }
-
 }

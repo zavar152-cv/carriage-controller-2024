@@ -14,6 +14,7 @@ public abstract class CarriageAction<T> {
     private final String actionName;
     private final String actionDescription;
     private final T actionArgument;
+    private final CarriageCommand<?> resetCommand;
 
     public abstract ArrayList<CarriageCommand<?>> toCommands(CarriageInfo carriageInfo);
     public abstract void setOnActionComplete(InfoReceiver infoReceiver, OnActionComplete onActionComplete);
