@@ -71,15 +71,15 @@ public class CarriageControllerApplication extends Application {
         popped.setOnActionComplete(infoReceiver, () -> {
             try {
                 commandSender.send(new CarriageCommand<>("reset_status"));
-            } catch (JsonProcessingException | MqttException e) {
+                System.out.println("on position");
+                Thread.sleep(500);
+                if (!actions.isEmpty())
+                    nextAction(actions, commandSender);
+                else
+                    System.out.println("task complete");
+            } catch (JsonProcessingException | MqttException | InterruptedException e) {
                 throw new RuntimeException(e);
             }
-            System.out.println("on position");
-            Thread.sleep(500);
-            if(!actions.isEmpty())
-                nextAction(actions, commandSender);
-            else
-                System.out.println("task complete");
         });
 
         ArrayList<CarriageCommand<?>> commands = popped.toCommands(infoReceiver.getCurrentCarriageInfo());

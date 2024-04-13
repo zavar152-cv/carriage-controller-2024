@@ -20,6 +20,6 @@ public abstract class CarriageAction<T> {
 
     @FunctionalInterface
     public interface OnActionComplete {
-        void doComplete() throws InterruptedException;
+        void doComplete();
     }
 }
