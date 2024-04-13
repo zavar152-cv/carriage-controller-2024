@@ -5,18 +5,18 @@ import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
-import org.eclipse.paho.client.mqttv3.IMqttActionListener;
-import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
 import org.eclipse.paho.client.mqttv3.IMqttToken;
 import org.eclipse.paho.client.mqttv3.MqttException;
-import ru.itmo.zavar.carriagecontroller.carriage.CommandSender;
-import ru.itmo.zavar.carriagecontroller.carriage.InfoReceiver;
+import ru.itmo.zavar.carriagecontroller.carriage.actions.CarriageAction;
+import ru.itmo.zavar.carriagecontroller.carriage.actions.GoToCarriageAction;
+import ru.itmo.zavar.carriagecontroller.carriage.net.CommandSender;
+import ru.itmo.zavar.carriagecontroller.carriage.net.InfoReceiver;
 import ru.itmo.zavar.carriagecontroller.mqtt.CarriageAsyncClient;
 import ru.itmo.zavar.carriagecontroller.mqtt.pojo.CarriageCommand;
 
 import java.io.IOException;
-import java.util.Random;
-import java.util.random.RandomGenerator;
+import java.util.ArrayList;
+import java.util.LinkedList;
 
 public class CarriageControllerApplication extends Application {
     @Override
@@ -28,25 +28,69 @@ public class CarriageControllerApplication extends Application {
         stage.show();
     }
 
+    private static InfoReceiver infoReceiver;
+
     public static void main(String[] args) throws MqttException {
         //launch();
         try (CarriageAsyncClient client = new CarriageAsyncClient("tcp://localhost:25565", "CC-app", "carriage/commands", "carriage/info")) {
             IMqttToken mqttToken = client.connect();
             mqttToken.waitForCompletion();
-            InfoReceiver infoReceiver = new InfoReceiver(client);
-            infoReceiver.setTargetSpeedChangeListener(System.out::println);
+            infoReceiver = new InfoReceiver(client);
+            infoReceiver.addCarriageInfoChangeListener(newValue -> {
+                System.out.println(newValue.getCurrentPosition());
+            }, "MainPositionListener");
             CommandSender commandSender = new CommandSender(client);
-            CarriageCommand<Float> targetSpeed = new CarriageCommand<>("target_speed");
-            RandomGenerator generator = RandomGenerator.getDefault();
-            while (true) {
-                targetSpeed.setArgument(60.0f + generator.nextFloat());
-                Thread.sleep(100);
-                commandSender.send(targetSpeed);
-            }
-
-            //client.sendMessage("{\"type\":0, \"command\":\"target_position\",\"argument\":800.00}");
-        } catch (MqttException | JsonProcessingException | InterruptedException e) {
+            LinkedList<CarriageAction<?>> actions = getCarriageActions();
+            nextAction(actions, commandSender);
+            while (true) ;
+        } catch (MqttException | InterruptedException e) {
             throw new RuntimeException(e);
         }
     }
+
+    private static LinkedList<CarriageAction<?>> getCarriageActions() {
+        LinkedList<CarriageAction<?>> actions = new LinkedList<>();
+        GoToCarriageAction goToCarriageAction1 = new GoToCarriageAction(new Float[]{1000.0f, 60.0f});
+        GoToCarriageAction goToCarriageAction2 = new GoToCarriageAction(new Float[]{0000.0f, 60.0f});
+        GoToCarriageAction goToCarriageAction3 = new GoToCarriageAction(new Float[]{2000.0f, 60.0f});
+        GoToCarriageAction goToCarriageAction4 = new GoToCarriageAction(new Float[]{1500.0f, 60.0f});
+        GoToCarriageAction goToCarriageAction5 = new GoToCarriageAction(new Float[]{0000.0f, 80.0f});
+        GoToCarriageAction goToCarriageAction6 = new GoToCarriageAction(new Float[]{3000.0f, 80.0f});
+        actions.add(goToCarriageAction1);
+        actions.add(goToCarriageAction2);
+        actions.add(goToCarriageAction3);
+        actions.add(goToCarriageAction4);
+        actions.add(goToCarriageAction5);
+        actions.add(goToCarriageAction6);
+        return actions;
+    }
+
+    private static void nextAction(LinkedList<CarriageAction<?>> actions, CommandSender commandSender) {
+        System.out.println("next action");
+        CarriageAction<?> popped = actions.pop();
+        popped.setOnActionComplete(infoReceiver, () -> {
+            try {
+                commandSender.send(new CarriageCommand<>("reset_status"));
+            } catch (JsonProcessingException | MqttException e) {
+                throw new RuntimeException(e);
+            }
+            System.out.println("on position");
+            Thread.sleep(500);
+            if(!actions.isEmpty())
+                nextAction(actions, commandSender);
+            else
+                System.out.println("task complete");
+        });
+
+        ArrayList<CarriageCommand<?>> commands = popped.toCommands(infoReceiver.getCurrentCarriageInfo());
+        commands.forEach(carriageCommand -> {
+            try {
+                System.out.println(carriageCommand.getCommand());
+                commandSender.send(carriageCommand);
+            } catch (JsonProcessingException | MqttException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
 }

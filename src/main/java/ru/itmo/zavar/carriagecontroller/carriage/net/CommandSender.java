@@ -1,4 +1,4 @@
-package ru.itmo.zavar.carriagecontroller.carriage;
+package ru.itmo.zavar.carriagecontroller.carriage.net;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;

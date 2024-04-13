@@ -1,20 +1,27 @@
-package ru.itmo.zavar.carriagecontroller.carriage;
+package ru.itmo.zavar.carriagecontroller.carriage.net;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.Getter;
 import lombok.Setter;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import ru.itmo.zavar.carriagecontroller.mqtt.CarriageAsyncClient;
 import ru.itmo.zavar.carriagecontroller.mqtt.pojo.CarriageInfo;
 
-import java.util.Objects;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 public final class InfoReceiver {
     private final CarriageAsyncClient carriageAsyncClient;
     private final ObjectMapper objectMapper;
     private CarriageInfo previuosCarriageInfo;
+    @Getter
+    private CarriageInfo currentCarriageInfo;
 
-    @Setter
-    private OnInfoChangeListener<CarriageInfo> carriageInfoChangeListener;
+    private ConcurrentHashMap<String, OnInfoChangeListener<CarriageInfo>> carriageInfoChangeListeners;
     @Setter
     private OnInfoChangeListener<Boolean> directionChangeListener;
     @Setter
@@ -26,11 +33,12 @@ public final class InfoReceiver {
     @Setter
     private OnInfoChangeListener<Byte> currentStatusChangeListener;
 
-    public InfoReceiver(CarriageAsyncClient carriageAsyncClient) throws MqttException {
+    private final CountDownLatch firstInfoArrived = new CountDownLatch(1);
+
+    public InfoReceiver(CarriageAsyncClient carriageAsyncClient) throws MqttException, InterruptedException {
         this.carriageAsyncClient = carriageAsyncClient;
         this.objectMapper = new ObjectMapper();
-        this.carriageInfoChangeListener = (v) -> {
-        };
+        this.carriageInfoChangeListeners = new ConcurrentHashMap<>();
         this.directionChangeListener = (v) -> {
         };
         this.targetSpeedChangeListener = (v) -> {
@@ -42,12 +50,21 @@ public final class InfoReceiver {
         this.currentStatusChangeListener = (v) -> {
         };
 
-        carriageAsyncClient.setOnMessageArrived((s, mqttMessage) -> {
-            CarriageInfo currentCarriageInfo = objectMapper.readValue(mqttMessage.getPayload(), CarriageInfo.class);
-            if (previuosCarriageInfo == null)
+        this.carriageAsyncClient.setOnMessageArrived((s, mqttMessage) -> {
+            currentCarriageInfo = objectMapper.readValue(mqttMessage.getPayload(), CarriageInfo.class);
+            if (previuosCarriageInfo == null) {
+                firstInfoArrived.countDown();
                 previuosCarriageInfo = currentCarriageInfo;
-            if (!currentCarriageInfo.equals(previuosCarriageInfo))
-                carriageInfoChangeListener.onChange(currentCarriageInfo);
+            }
+            if (!currentCarriageInfo.equals(previuosCarriageInfo)) {
+                carriageInfoChangeListeners.forEach((s1, listener) -> {
+                    try {
+                        listener.onChange(currentCarriageInfo);
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+            }
             if (!currentCarriageInfo.getDirection().equals(previuosCarriageInfo.getDirection()))
                 directionChangeListener.onChange(currentCarriageInfo.getDirection());
             if (!currentCarriageInfo.getTargetSpeed().equals(previuosCarriageInfo.getTargetSpeed()))
@@ -60,11 +77,20 @@ public final class InfoReceiver {
                 currentStatusChangeListener.onChange(currentCarriageInfo.getCurrentStatus());
             previuosCarriageInfo = currentCarriageInfo;
         });
+        firstInfoArrived.await();
+    }
+
+    public void addCarriageInfoChangeListener(OnInfoChangeListener<CarriageInfo> listener, String name) {
+        carriageInfoChangeListeners.put(name, listener);
+    }
+
+    public void removeCarriageInfoChangeListener(String name) {
+        carriageInfoChangeListeners.remove(name);
     }
 
     @FunctionalInterface
     public interface OnInfoChangeListener<T> {
-        void onChange(T newValue);
+        void onChange(T newValue) throws InterruptedException;
     }
 
 }

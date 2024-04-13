@@ -5,7 +5,7 @@ import lombok.*;
 @Getter
 @Setter
 @RequiredArgsConstructor
-public final class CarriageCommand<T> {
+public final class CarriageCommand<T extends Number> {
     private final String command;
     private T argument;
 }
