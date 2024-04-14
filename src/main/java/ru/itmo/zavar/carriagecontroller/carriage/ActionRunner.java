@@ -1,9 +1,9 @@
 package ru.itmo.zavar.carriagecontroller.carriage;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.log4j.Log4j2;
-import lombok.extern.slf4j.Slf4j;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import ru.itmo.zavar.carriagecontroller.carriage.actions.CarriageAction;
 import ru.itmo.zavar.carriagecontroller.carriage.net.CommandSender;
@@ -20,6 +20,9 @@ public final class ActionRunner {
     private final LinkedList<CarriageAction<?>> actions;
     @Setter
     private OnEventListener onEventListener;
+    @Getter
+    private boolean stepModeEnabled = false;
+    private ActionEvent previousEvent;
 
     public ActionRunner(InfoReceiver infoReceiver, CommandSender commandSender, LinkedList<CarriageAction<?>> actions) {
         this.infoReceiver = infoReceiver;
@@ -27,26 +30,53 @@ public final class ActionRunner {
         this.actions = actions;
         this.onEventListener = e -> {
         };
+        this.previousEvent = ActionEvent.IDLE;
+    }
+
+    public void enableStepMode() {
+        this.stepModeEnabled = true;
+    }
+
+    public void disableStepMode() {
+        this.stepModeEnabled = false;
+    }
+
+    public void step() {
+        if(!this.stepModeEnabled)
+            throw new UnsupportedOperationException("Step mode is disabled");
+
+        this.nextAction(this.actions, this.commandSender);
     }
 
     public void runAllActions() {
-        nextAction(this.actions, this.commandSender);
+        if(!this.previousEvent.equals(ActionEvent.IDLE))
+            throw new UnsupportedOperationException("Runner is not in IDLE mode");
+
+        this.nextAction(this.actions, this.commandSender);
     }
 
     private void nextAction(LinkedList<CarriageAction<?>> actions, CommandSender commandSender) {
         CarriageAction<?> popped = actions.pop();
         this.onEventListener.onEvent(ActionEvent.NEXT_ACTION);
+        this.previousEvent = ActionEvent.NEXT_ACTION;
         log.info("Starting next action {} with argument {}", popped.getActionName(), popped.getActionArgument());
         popped.setOnActionComplete(this.infoReceiver, () -> {
             try {
-                commandSender.send(popped.getResetCommand());
+                CarriageCommand<?> resetCommand = popped.getResetCommand();
+                if(!CarriageCommand.isEmpty(resetCommand))
+                    commandSender.send(resetCommand);
+                if(actions.isEmpty())
+                    this.disableStepMode();
                 this.onEventListener.onEvent(ActionEvent.ACTION_COMPLETE);
+                this.previousEvent = ActionEvent.ACTION_COMPLETE;
                 log.info("Action {} with argument {} completed", popped.getActionName(), popped.getActionArgument());
                 Thread.sleep(500);
-                if (!actions.isEmpty())
-                    nextAction(actions, commandSender);
-                else {
+                if (!actions.isEmpty()) {
+                    if(!this.stepModeEnabled)
+                        this.nextAction(actions, commandSender);
+                } else {
                     this.onEventListener.onEvent(ActionEvent.TASK_COMPLETE);
+                    this.previousEvent = ActionEvent.TASK_COMPLETE;
                     log.info("All actions completed");
                 }
             } catch (JsonProcessingException | MqttException | InterruptedException e) {
@@ -66,6 +96,7 @@ public final class ActionRunner {
     }
 
     public enum ActionEvent {
+        IDLE,
         NEXT_ACTION,
         ACTION_COMPLETE,
         TASK_COMPLETE

@@ -1,5 +1,7 @@
 package ru.itmo.zavar.carriagecontroller.mqtt;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.eclipse.paho.client.mqttv3.*;
 
 public final class CarriageAsyncClient implements AutoCloseable {
@@ -8,6 +10,10 @@ public final class CarriageAsyncClient implements AutoCloseable {
     private final MqttConnectOptions options;
     private final String commandsPublishTopic;
     private final String infoSubscribeTopic;
+    @Setter
+    private OnEventListener onEventListener;
+    @Getter
+    private Throwable lastConnectionLostThrowable;
 
     private static final int mqttQos = 2;
 
@@ -19,6 +25,30 @@ public final class CarriageAsyncClient implements AutoCloseable {
         this.options.setConnectionTimeout(10);
         this.commandsPublishTopic = commandsPublishTopic;
         this.infoSubscribeTopic = infoSubscribeTopic;
+        this.onEventListener = e -> {
+        };
+        this.mqttAsyncClient.setCallback(new MqttCallbackExtended() {
+            @Override
+            public void connectComplete(boolean b, String s) {
+                onEventListener.onEvent(ClientEvent.CONNECT_COMPLETE);
+            }
+
+            @Override
+            public void connectionLost(Throwable throwable) {
+                lastConnectionLostThrowable = throwable;
+                onEventListener.onEvent(ClientEvent.CONNECTION_LOST);
+            }
+
+            @Override
+            public void messageArrived(String s, MqttMessage mqttMessage) throws Exception {
+                onEventListener.onEvent(ClientEvent.MESSAGE_ARRIVED);
+            }
+
+            @Override
+            public void deliveryComplete(IMqttDeliveryToken iMqttDeliveryToken) {
+                onEventListener.onEvent(ClientEvent.DELIVERY_COMPLETE);
+            }
+        });
     }
 
     public IMqttToken connect() throws UnsupportedOperationException, MqttException {
@@ -56,5 +86,17 @@ public final class CarriageAsyncClient implements AutoCloseable {
     public void close() throws MqttException {
         this.mqttAsyncClient.disconnect();
         this.mqttAsyncClient.close();
+    }
+
+    public enum ClientEvent {
+        CONNECT_COMPLETE,
+        CONNECTION_LOST,
+        MESSAGE_ARRIVED,
+        DELIVERY_COMPLETE
+    }
+
+    @FunctionalInterface
+    public interface OnEventListener {
+        void onEvent(ClientEvent e);
     }
 }
