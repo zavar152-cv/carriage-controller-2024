@@ -29,35 +29,35 @@ public class CarriageControllerApplication extends Application {
     }
 
     public static void main(String[] args) {
-        //launch();
-        try (CarriageAsyncClient client = new CarriageAsyncClient("tcp://localhost:25565", "CC-app", "carriage/commands", "carriage/info")) {
-            IMqttToken mqttToken = client.connect();
-            client.setOnEventListener(e -> {
-                if(e.equals(CarriageAsyncClient.ClientEvent.CONNECTION_LOST)) {
-                    log.error("Connection lost: {}, {}", client.getLastConnectionLostThrowable().getMessage(),
-                            client.getLastConnectionLostThrowable().getCause());
-                } else if(e.equals(CarriageAsyncClient.ClientEvent.CONNECT_COMPLETE)) {
-                    log.info("Connection complete");
-                }
-            });
-            mqttToken.waitForCompletion();
-            InfoReceiver infoReceiver = new InfoReceiver(client);
-            infoReceiver.addCurrentPositionChangeListener(newValue -> {
-                log.info("Position: {}", newValue);
-            }, "MainPositionListener");
-            CommandSender commandSender = new CommandSender(client);
-            LinkedList<CarriageAction<?>> actions = getCarriageActions();
-            ActionRunner actionRunner = new ActionRunner(infoReceiver, commandSender, actions);
-            actionRunner.enableStepMode();
-            actionRunner.setOnEventListener(e -> {
-                if(e.equals(ActionRunner.ActionEvent.ACTION_COMPLETE) && actionRunner.isStepModeEnabled())
-                    actionRunner.step();
-            });
-            actionRunner.runAllActions();
-            while (true) ;
-        } catch (MqttException | InterruptedException e) {
-            throw new RuntimeException(e);
-        }
+        launch();
+//        try (CarriageAsyncClient client = new CarriageAsyncClient("tcp://localhost:25565", "CC-app", "carriage/commands", "carriage/info")) {
+//            IMqttToken mqttToken = client.connect();
+//            client.setOnEventListener(e -> {
+//                if(e.equals(CarriageAsyncClient.ClientEvent.CONNECTION_LOST)) {
+//                    log.error("Connection lost: {}, {}", client.getLastConnectionLostThrowable().getMessage(),
+//                            client.getLastConnectionLostThrowable().getCause());
+//                } else if(e.equals(CarriageAsyncClient.ClientEvent.CONNECT_COMPLETE)) {
+//                    log.info("Connection complete");
+//                }
+//            });
+//            mqttToken.waitForCompletion();
+//            InfoReceiver infoReceiver = new InfoReceiver(client);
+//            infoReceiver.addCurrentPositionChangeListener(newValue -> {
+//                log.info("Position: {}", newValue);
+//            }, "MainPositionListener");
+//            CommandSender commandSender = new CommandSender(client);
+//            LinkedList<CarriageAction<?>> actions = getCarriageActions();
+//            ActionRunner actionRunner = new ActionRunner(infoReceiver, commandSender, actions);
+//            actionRunner.enableStepMode();
+//            actionRunner.setOnEventListener(e -> {
+//                if(e.equals(ActionRunner.ActionEvent.ACTION_COMPLETE) && actionRunner.isStepModeEnabled())
+//                    actionRunner.step();
+//            });
+//            actionRunner.runAllActions();
+//            while (true) ;
+//        } catch (MqttException | InterruptedException e) {
+//            throw new RuntimeException(e);
+//        }
     }
 
     private static LinkedList<CarriageAction<?>> getCarriageActions() {

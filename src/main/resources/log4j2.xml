@@ -7,7 +7,7 @@
             <Layout type="PatternLayout" pattern="%d{HH:mm:ss} [%level]: %msg%n" />
         </Console>
         <RollingRandomAccessFile name="File" fileName="logs/latest.log" filePattern="logs/%d{yyyy-MM-dd}-%i.log.gz">
-            <PatternLayout pattern="[%d{HH:mm:ss}] [%level]: %msg%n" />
+            <PatternLayout pattern="[%d{HH:mm:ss}] [%class] [%level]: %msg%n" />
             <Policies>
                 <TimeBasedTriggeringPolicy />
                 <OnStartupTriggeringPolicy />
