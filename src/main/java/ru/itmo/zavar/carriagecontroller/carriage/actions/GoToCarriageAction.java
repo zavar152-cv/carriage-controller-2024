@@ -46,4 +46,11 @@ public class GoToCarriageAction extends CarriageAction<Float[]> {
         }, "GoToListener");
     }
 
+    @Override
+    public String getArgumentAsReadableString() {
+        return "X: " + getActionArgument()[0] +
+                ", S: " +
+                getActionArgument()[1];
+    }
+
 }

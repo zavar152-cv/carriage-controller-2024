@@ -18,5 +18,6 @@ module ru.itmo.zavar.carriagecontroller {
     exports ru.itmo.zavar.carriagecontroller;
     exports ru.itmo.zavar.carriagecontroller.ui;
     opens ru.itmo.zavar.carriagecontroller.ui to javafx.fxml;
+    opens ru.itmo.zavar.carriagecontroller.carriage.actions to javafx.base;
     opens ru.itmo.zavar.carriagecontroller.mqtt.pojo to com.fasterxml.jackson.databind;
 }

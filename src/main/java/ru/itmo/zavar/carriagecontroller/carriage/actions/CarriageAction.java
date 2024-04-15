@@ -19,6 +19,8 @@ public abstract class CarriageAction<T> {
     public abstract ArrayList<CarriageCommand<?>> toCommands(CarriageInfo carriageInfo);
     public abstract void setOnActionComplete(InfoReceiver infoReceiver, OnActionComplete onActionComplete);
 
+    public abstract String getArgumentAsReadableString();
+
     @FunctionalInterface
     public interface OnActionComplete {
         void doComplete();
