@@ -4,6 +4,7 @@ import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
+import ru.itmo.zavar.carriagecontroller.ui.MainController;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -16,6 +17,11 @@ public class CarriageControllerApplication extends Application {
         FXMLLoader fxmlLoader = new FXMLLoader(CarriageControllerApplication.class.getResource("fxml/main-view.fxml"));
         fxmlLoader.setResources(langBundle);
         Scene scene = new Scene(fxmlLoader.load(), 1000, 600);
+
+        MainController mainController = fxmlLoader.getController();
+        mainController.setPrimaryStage(stage);
+        mainController.setupOnClose();
+
         stage.setTitle(langBundle.getString("title"));
         stage.setScene(scene);
         stage.setResizable(false);

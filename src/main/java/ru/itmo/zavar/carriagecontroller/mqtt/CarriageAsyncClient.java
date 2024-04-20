@@ -1,8 +1,9 @@
 package ru.itmo.zavar.carriagecontroller.mqtt;
 
 import lombok.Getter;
-import lombok.Setter;
 import org.eclipse.paho.client.mqttv3.*;
+
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class CarriageAsyncClient implements AutoCloseable {
 
@@ -10,8 +11,9 @@ public final class CarriageAsyncClient implements AutoCloseable {
     private final MqttConnectOptions options;
     private final String commandsPublishTopic;
     private final String infoSubscribeTopic;
-    @Setter
-    private OnEventListener onEventListener;
+    private final ConcurrentHashMap<String, OnEventListener> onEventListeners;
+    @Getter
+    private final String brokerUrl;
     @Getter
     private Throwable lastConnectionLostThrowable;
 
@@ -25,28 +27,28 @@ public final class CarriageAsyncClient implements AutoCloseable {
         this.options.setConnectionTimeout(10);
         this.commandsPublishTopic = commandsPublishTopic;
         this.infoSubscribeTopic = infoSubscribeTopic;
-        this.onEventListener = e -> {
-        };
+        this.onEventListeners = new ConcurrentHashMap<>();
+        this.brokerUrl = brokerUrl;
         this.mqttAsyncClient.setCallback(new MqttCallbackExtended() {
             @Override
             public void connectComplete(boolean b, String s) {
-                onEventListener.onEvent(ClientEvent.CONNECT_COMPLETE);
+                onEventListeners.forEach((s1, onEventListener) -> onEventListener.onEvent(ClientEvent.CONNECT_COMPLETE));
             }
 
             @Override
             public void connectionLost(Throwable throwable) {
                 lastConnectionLostThrowable = throwable;
-                onEventListener.onEvent(ClientEvent.CONNECTION_LOST);
+                onEventListeners.forEach((s, onEventListener) -> onEventListener.onEvent(ClientEvent.CONNECTION_LOST));
             }
 
             @Override
             public void messageArrived(String s, MqttMessage mqttMessage) throws Exception {
-                onEventListener.onEvent(ClientEvent.MESSAGE_ARRIVED);
+                onEventListeners.forEach((s1, onEventListener) -> onEventListener.onEvent(ClientEvent.MESSAGE_ARRIVED));
             }
 
             @Override
             public void deliveryComplete(IMqttDeliveryToken iMqttDeliveryToken) {
-                onEventListener.onEvent(ClientEvent.DELIVERY_COMPLETE);
+                onEventListeners.forEach((s, onEventListener) -> onEventListener.onEvent(ClientEvent.DELIVERY_COMPLETE));
             }
         });
     }
@@ -75,11 +77,19 @@ public final class CarriageAsyncClient implements AutoCloseable {
     public void sendMessage(String messageText) throws MqttException {
         MqttMessage message = new MqttMessage(messageText.getBytes());
         message.setQos(mqttQos);
-        mqttAsyncClient.publish(commandsPublishTopic, message);
+        this.mqttAsyncClient.publish(this.commandsPublishTopic, message);
     }
 
     public void setOnMessageArrived(IMqttMessageListener listener) throws MqttException {
-        mqttAsyncClient.subscribe(infoSubscribeTopic, mqttQos, listener);
+        this.mqttAsyncClient.subscribe(this.infoSubscribeTopic, mqttQos, listener);
+    }
+
+    public void addEventListener(OnEventListener onEventListener, String name) {
+        this.onEventListeners.put(name, onEventListener);
+    }
+
+    public void removeEventListener(String name) {
+        this.onEventListeners.remove(name);
     }
 
     @Override

@@ -29,6 +29,7 @@
                               <Button fx:id="addPointButton" mnemonicParsing="false" text="%tapPane.actionsTab.addPoint" />
                               <Button fx:id="boundsButton" mnemonicParsing="false" text="%tapPane.actionsTab.setBounds" />
                               <Button fx:id="launchButton" mnemonicParsing="false" text="%tapPane.actionsTab.launch" />
+                              <Button fx:id="connectButton" mnemonicParsing="false" text="%tapPane.actionsTab.connection" />
                            </children>
                         </VBox>
                         <TilePane fx:id="actionsTilePane" alignment="BASELINE_LEFT" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="150.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">

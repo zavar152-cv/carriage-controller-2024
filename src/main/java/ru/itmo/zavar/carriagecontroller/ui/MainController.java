@@ -1,5 +1,6 @@
 package ru.itmo.zavar.carriagecontroller.ui;
 
+import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
@@ -17,6 +18,8 @@ import javafx.scene.paint.Paint;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Line;
 import javafx.scene.shape.Rectangle;
+import javafx.stage.Stage;
+import lombok.Setter;
 import lombok.extern.log4j.Log4j2;
 import org.eclipse.paho.client.mqttv3.IMqttToken;
 import org.eclipse.paho.client.mqttv3.MqttException;
@@ -30,6 +33,7 @@ import ru.itmo.zavar.carriagecontroller.ui.data.CarriagePoint;
 import ru.itmo.zavar.carriagecontroller.ui.data.CoordinateBounds;
 import ru.itmo.zavar.carriagecontroller.ui.dialogs.AddPointDialog;
 import ru.itmo.zavar.carriagecontroller.ui.dialogs.BoundsDialog;
+import ru.itmo.zavar.carriagecontroller.ui.dialogs.ConnectionDialog;
 import ru.itmo.zavar.carriagecontroller.ui.dialogs.GoToCreatorDialog;
 
 import java.net.URL;
@@ -37,6 +41,9 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Optional;
 import java.util.ResourceBundle;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @Log4j2
 public class MainController implements Initializable {
@@ -51,7 +58,7 @@ public class MainController implements Initializable {
     @FXML
     private MenuBar menuBar;
     @FXML
-    private Button boundsButton, addPointButton, goToButton, launchButton;
+    private Button boundsButton, addPointButton, goToButton, launchButton, connectButton;
     @FXML
     private AnchorPane anchorPane;
     @FXML
@@ -60,6 +67,10 @@ public class MainController implements Initializable {
     private double minXCoordinate, maxXCoordinate, minYCoordinate, maxYCoordinate;
     private final HashMap<String, CarriagePoint> carriagePoints;
     private final HashMap<String, Circle> drewPoints;
+    private CarriageAsyncClient client;
+    private final ExecutorService executorService;
+    @Setter
+    private Stage primaryStage;
 
     public MainController() {
         this.carriagePoints = new HashMap<>();
@@ -68,19 +79,21 @@ public class MainController implements Initializable {
         this.maxXCoordinate = 3000;
         this.minYCoordinate = 0;
         this.maxYCoordinate = 100;
+        this.executorService = Executors.newCachedThreadPool();
     }
 
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
         this.setCarriageRectanglePosition(0, this.minXCoordinate, this.maxXCoordinate);
-        createStartAndEndPoints();
+        this.createStartAndEndPoints();
         this.addPointButton.setOnMouseClicked(this.onAddPointButtonClicked(resourceBundle));
         this.boundsButton.setOnMouseClicked(this.onBoundsButtonClicked(resourceBundle));
-        this.goToButton.setOnMouseClicked(mouseEvent -> {
+        this.goToButton.setOnMouseClicked(mouseEvent -> { //TODO move to external class
             GoToCreatorDialog goToCreatorDialog = new GoToCreatorDialog(resourceBundle, carriagePoints);
             Optional<GoToCarriageAction> goToCarriageAction = goToCreatorDialog.showAndWait();
             goToCarriageAction.ifPresent(action -> this.actionsTable.getItems().add(action));
         });
+        this.connectButton.setOnMouseClicked(this.onConnectButtonClicked(resourceBundle));
 
         TableColumn<CarriageAction<?>, String> nameColumn = new TableColumn<>(resourceBundle.getString("table.actions"));
         nameColumn.setCellValueFactory(new PropertyValueFactory<>("actionName"));
@@ -95,14 +108,14 @@ public class MainController implements Initializable {
             new Thread(() -> {
                 try (CarriageAsyncClient client = new CarriageAsyncClient("tcp://localhost:25565", "CC-app", "carriage/commands", "carriage/info")) {
                     IMqttToken mqttToken = client.connect();
-                    client.setOnEventListener(e -> {
+                    client.addEventListener(e -> {
                         if (e.equals(CarriageAsyncClient.ClientEvent.CONNECTION_LOST)) {
                             log.error("Connection lost: {}, {}", client.getLastConnectionLostThrowable().getMessage(),
                                     client.getLastConnectionLostThrowable().getCause());
                         } else if (e.equals(CarriageAsyncClient.ClientEvent.CONNECT_COMPLETE)) {
                             log.info("Connection complete");
                         }
-                    });
+                    }, "MainListener");
                     mqttToken.waitForCompletion();
                     InfoReceiver infoReceiver = new InfoReceiver(client);
                     infoReceiver.addCurrentPositionChangeListener(newValue -> {
@@ -113,10 +126,10 @@ public class MainController implements Initializable {
                     LinkedList<CarriageAction<?>> actions = new LinkedList<>(actionsTable.getItems());
                     ActionRunner actionRunner = new ActionRunner(infoReceiver, commandSender, actions);
                     actionRunner.enableStepMode();
-                    actionRunner.setOnEventListener(e -> {
+                    actionRunner.addEventListener(e -> {
                         if (e.equals(ActionRunner.ActionEvent.ACTION_COMPLETE) && actionRunner.isStepModeEnabled())
                             actionRunner.step();
-                    });
+                    }, "MainListener");
                     actionRunner.runAllActions();
                     while (true) ;
                 } catch (MqttException | InterruptedException e) {
@@ -137,6 +150,20 @@ public class MainController implements Initializable {
                     this.maxXCoordinate = value.maxXCoordinate();
                     this.minYCoordinate = value.minYCoordinate();
                     this.maxYCoordinate = value.maxYCoordinate();
+                });
+            }
+        };
+    }
+
+    private EventHandler<MouseEvent> onConnectButtonClicked(ResourceBundle resourceBundle) {
+        return mouseEvent -> {
+            if (mouseEvent.getButton().equals(MouseButton.PRIMARY)) {
+                ConnectionDialog connectionDialog = new ConnectionDialog(executorService, resourceBundle, this.client);
+                Optional<CarriageAsyncClient> carriageAsyncClient = connectionDialog.showAndWait();
+                carriageAsyncClient.ifPresent(newClient -> {
+                    if (isClientConnected())
+                        this.disconnectClient();
+                    this.client = newClient;
                 });
             }
         };
@@ -164,6 +191,10 @@ public class MainController implements Initializable {
                 });
             }
         };
+    }
+
+    private boolean isClientConnected() {
+        return this.client != null && this.client.isConnected();
     }
 
     private void setCarriageRectanglePosition(double position, double minBounds, double maxBounds) {
@@ -206,5 +237,24 @@ public class MainController implements Initializable {
         actions.add(goToCarriageAction5);
         actions.add(goToCarriageAction6);
         return actions;
+    }
+
+    private void disconnectClient() {
+        if (this.isClientConnected()) {
+            try {
+                this.client.close();
+            } catch (MqttException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    public void setupOnClose() {
+        primaryStage.setOnCloseRequest(windowEvent -> {
+            this.disconnectClient();
+            this.executorService.shutdownNow();
+            Platform.exit();
+            System.exit(0);
+        });
     }
 }

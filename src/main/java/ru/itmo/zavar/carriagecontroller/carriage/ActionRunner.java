@@ -2,7 +2,6 @@ package ru.itmo.zavar.carriagecontroller.carriage;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.Getter;
-import lombok.Setter;
 import lombok.extern.log4j.Log4j2;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import ru.itmo.zavar.carriagecontroller.carriage.actions.CarriageAction;
@@ -12,14 +11,14 @@ import ru.itmo.zavar.carriagecontroller.mqtt.pojo.CarriageCommand;
 
 import java.util.ArrayList;
 import java.util.LinkedList;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Log4j2
 public final class ActionRunner {
     private final InfoReceiver infoReceiver;
     private final CommandSender commandSender;
     private final LinkedList<CarriageAction<?>> actions;
-    @Setter
-    private OnEventListener onEventListener;
+    private final ConcurrentHashMap<String, OnEventListener> onEventListeners;
     @Getter
     private boolean stepModeEnabled = false;
     private ActionEvent previousEvent;
@@ -28,8 +27,7 @@ public final class ActionRunner {
         this.infoReceiver = infoReceiver;
         this.commandSender = commandSender;
         this.actions = actions;
-        this.onEventListener = e -> {
-        };
+        this.onEventListeners = new ConcurrentHashMap<>();
         this.previousEvent = ActionEvent.IDLE;
     }
 
@@ -57,7 +55,9 @@ public final class ActionRunner {
 
     private void nextAction(LinkedList<CarriageAction<?>> actions, CommandSender commandSender) {
         CarriageAction<?> popped = actions.pop();
-        this.onEventListener.onEvent(ActionEvent.NEXT_ACTION);
+        this.onEventListeners.forEach((s, onEventListener) -> {
+            onEventListener.onEvent(ActionEvent.NEXT_ACTION);
+        });
         this.previousEvent = ActionEvent.NEXT_ACTION;
         log.info("Starting next action {} with argument {}", popped.getActionName(), popped.getActionArgument());
         popped.setOnActionComplete(this.infoReceiver, () -> {
@@ -67,7 +67,9 @@ public final class ActionRunner {
                     commandSender.send(resetCommand);
                 if(actions.isEmpty())
                     this.disableStepMode();
-                this.onEventListener.onEvent(ActionEvent.ACTION_COMPLETE);
+                this.onEventListeners.forEach((s, onEventListener) -> {
+                    onEventListener.onEvent(ActionEvent.ACTION_COMPLETE);
+                });
                 this.previousEvent = ActionEvent.ACTION_COMPLETE;
                 log.info("Action {} with argument {} completed", popped.getActionName(), popped.getActionArgument());
                 Thread.sleep(500);
@@ -75,7 +77,9 @@ public final class ActionRunner {
                     if(!this.stepModeEnabled)
                         this.nextAction(actions, commandSender);
                 } else {
-                    this.onEventListener.onEvent(ActionEvent.TASK_COMPLETE);
+                    this.onEventListeners.forEach((s, onEventListener) -> {
+                        onEventListener.onEvent(ActionEvent.TASK_COMPLETE);
+                    });
                     this.previousEvent = ActionEvent.TASK_COMPLETE;
                     log.info("All actions completed");
                 }
@@ -94,6 +98,15 @@ public final class ActionRunner {
             }
         });
     }
+
+    public void addEventListener(OnEventListener onEventListener, String name) {
+        this.onEventListeners.put(name, onEventListener);
+    }
+
+    public void removeEventListener(String name) {
+        this.onEventListeners.remove(name);
+    }
+
 
     public enum ActionEvent {
         IDLE,
