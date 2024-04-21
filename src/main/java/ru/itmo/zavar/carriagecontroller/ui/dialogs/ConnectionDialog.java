@@ -126,6 +126,16 @@ public final class ConnectionDialog extends Dialog<CarriageAsyncClient> {
         super.setResultConverter(buttonType -> {
             if (buttonType.equals(saveButtonType)) {
                 return this.newClient;
+            } else if (buttonType.equals(ButtonType.CANCEL)) {
+                if (this.newClient != null && this.newClient.isConnected()) {
+                    try {
+                        this.newClient.close();
+                    } catch (MqttException e) {
+                        throw new RuntimeException(e);
+                    }
+                    log.info("Disconnected from {}...", addressStringProperty.get());
+                }
+                return null;
             }
             return null;
         });

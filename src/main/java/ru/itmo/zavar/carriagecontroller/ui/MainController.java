@@ -2,6 +2,7 @@ package ru.itmo.zavar.carriagecontroller.ui;
 
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
+import javafx.concurrent.Task;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -67,9 +68,10 @@ public class MainController implements Initializable {
     private final ExecutorService executorService;
     @Setter
     private Stage primaryStage;
-
     private volatile long lastMessageArrivedTime;
     private final ScheduledExecutorService scheduledExecutorService;
+    private InfoReceiver infoReceiver;
+    private CommandSender commandSender;
 
     public MainController() {
         this.carriagePoints = new HashMap<>();
@@ -86,6 +88,8 @@ public class MainController implements Initializable {
     public void initialize(URL url, ResourceBundle resourceBundle) {
         this.scheduledExecutorService.scheduleAtFixedRate(timeoutChecker(resourceBundle), 0, 5, TimeUnit.SECONDS);
         this.setCarriageRectanglePosition(0, this.minXCoordinate, this.maxXCoordinate);
+        this.carriageRectangle.setVisible(false);
+        this.launchButton.setDisable(true);
         this.createStartAndEndPoints();
         this.addPointButton.setOnMouseClicked(this.onAddPointButtonClicked(resourceBundle));
         this.boundsButton.setOnMouseClicked(this.onBoundsButtonClicked(resourceBundle));
@@ -105,28 +109,17 @@ public class MainController implements Initializable {
                 new SimpleStringProperty(carriageActionStringCellDataFeatures.getValue().getArgumentAsReadableString()));
         this.actionsTable.getColumns().add(argumentColumn);
 
-        launchButton.setOnMouseClicked(mouseEvent -> {
+        launchButton.setOnMouseClicked(mouseEvent -> { //TODO check for empty table
             new Thread(() -> {
-                InfoReceiver infoReceiver;
-                try {
-                    infoReceiver = new InfoReceiver(client);
-                } catch (MqttException | InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-                infoReceiver.addCurrentPositionChangeListener(newValue -> {
-                        log.info("Position: {}", newValue);
-                        this.setCarriageRectanglePosition(newValue, minXCoordinate, maxXCoordinate);
-                    }, "MainPositionListener");
-                    CommandSender commandSender = new CommandSender(client);
-                    LinkedList<CarriageAction<?>> actions = new LinkedList<>(actionsTable.getItems());
-                    ActionRunner actionRunner = new ActionRunner(infoReceiver, commandSender, actions);
-                    actionRunner.enableStepMode();
-                    actionRunner.addEventListener(e -> {
-                        if (e.equals(ActionRunner.ActionEvent.ACTION_COMPLETE) && actionRunner.isStepModeEnabled())
-                            actionRunner.step();
-                    }, "MainListener");
-                    actionRunner.runAllActions();
-                    while (true) ;
+                LinkedList<CarriageAction<?>> actions = new LinkedList<>(actionsTable.getItems());
+                ActionRunner actionRunner = new ActionRunner(infoReceiver, commandSender, actions);
+//                actionRunner.enableStepMode();
+//                actionRunner.addEventListener(e -> {
+//                    if (e.equals(ActionRunner.ActionEvent.ACTION_COMPLETE) && actionRunner.isStepModeEnabled())
+//                        actionRunner.step();
+//                }, "MainListener");
+                actionRunner.runAllActions();
+//                while (true) ;
             }).start();
         });
     }
@@ -157,7 +150,45 @@ public class MainController implements Initializable {
                         this.disconnectClient();
                     this.client = newClient;
                     this.client.addOnMessageArrived(onCarriageMessageArrived(), "MainController");
+                    try {
+                        if (this.infoReceiver != null)
+                            this.infoReceiver.clearAllListeners();
+                        this.infoReceiver = new InfoReceiver(this.client);
+
+                        Task<Void> task = firstInfoArrived();
+
+                        task.setOnSucceeded(workerStateEvent -> {
+                            this.infoReceiver.addCurrentPositionChangeListener(onCarriagePositionChange(), "MainPositionListener");
+                            this.commandSender = new CommandSender(this.client);
+                            Float currentPosition = this.infoReceiver.getCurrentCarriageInfo().getCurrentPosition();
+                            this.setCarriageRectanglePosition(currentPosition, minXCoordinate, maxXCoordinate);
+                            this.carriageRectangle.setVisible(true);
+                            this.launchButton.setDisable(false);
+                        });
+
+                        task.setOnFailed(workerStateEvent -> {
+                            CarriageControllerApplication.showErrorDialog(resourceBundle, new IllegalStateException("Carriage is offline"));
+                            this.disconnectClient();
+                        });
+
+                        executorService.submit(task);
+
+                    } catch (MqttException | InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
                 });
+            }
+        };
+    }
+
+    private Task<Void> firstInfoArrived() {
+        return new Task<>() {
+            @Override
+            protected Void call() throws Exception {
+                boolean waited = infoReceiver.waitForFirstResult();
+                if (!waited)
+                    throw new TimeoutException();
+                return null;
             }
         };
     }
@@ -170,11 +201,18 @@ public class MainController implements Initializable {
 
     private Runnable timeoutChecker(ResourceBundle resourceBundle) {
         return () -> {
-            if (System.currentTimeMillis() - lastMessageArrivedTime > 5000 && isClientConnected()) {
+            if (System.currentTimeMillis() - lastMessageArrivedTime > 5000 && isClientConnected() && this.infoReceiver.isReady()) {
                 lastMessageArrivedTime = 0;
                 CarriageControllerApplication.showErrorDialog(resourceBundle, new IllegalStateException("Carriage is offline"));
                 this.disconnectClient();
             }
+        };
+    }
+
+    private InfoReceiver.OnInfoChangeListener<Float> onCarriagePositionChange() {
+        return newValue -> {
+            log.info("Position: {}", newValue);
+            this.setCarriageRectanglePosition(newValue, minXCoordinate, maxXCoordinate);
         };
     }
 
@@ -252,6 +290,8 @@ public class MainController implements Initializable {
         if (this.isClientConnected()) {
             try {
                 this.client.close();
+                this.launchButton.setDisable(true);
+                log.info("Disconnected from {}...", this.client.getBrokerUrl());
             } catch (MqttException e) {
                 throw new RuntimeException(e);
             }

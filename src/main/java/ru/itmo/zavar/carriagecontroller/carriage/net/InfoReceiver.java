@@ -8,6 +8,7 @@ import ru.itmo.zavar.carriagecontroller.mqtt.pojo.CarriageInfo;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 public final class InfoReceiver {
     private final CarriageAsyncClient carriageAsyncClient;
@@ -15,6 +16,8 @@ public final class InfoReceiver {
     private CarriageInfo previuosCarriageInfo;
     @Getter
     private CarriageInfo currentCarriageInfo;
+    @Getter
+    private boolean ready = false;
 
     private final ConcurrentHashMap<String, OnInfoChangeListener<CarriageInfo>> carriageInfoChangeListeners;
     private final ConcurrentHashMap<String, OnInfoChangeListener<Boolean>> directionChangeListeners;
@@ -55,7 +58,21 @@ public final class InfoReceiver {
                 currentStatusChangeListeners.forEach((s1, listener) -> listener.onChange(currentCarriageInfo.getCurrentStatus()));
             previuosCarriageInfo = currentCarriageInfo;
         }, "InfoReceiver");
-        firstInfoArrived.await();
+    }
+
+    public boolean waitForFirstResult() throws InterruptedException {
+        boolean await = firstInfoArrived.await(2500, TimeUnit.MILLISECONDS);
+        ready = true;
+        return await;
+    }
+
+    public void clearAllListeners() {
+        carriageInfoChangeListeners.clear();
+        directionChangeListeners.clear();
+        targetSpeedChangeListeners.clear();
+        targetPositionChangeListeners.clear();
+        currentPositionChangeListeners.clear();
+        currentStatusChangeListeners.clear();
     }
 
     public void addCarriageInfoChangeListener(OnInfoChangeListener<CarriageInfo> listener, String name) {
