@@ -24,7 +24,7 @@ public final class CarriageAsyncClient implements AutoCloseable {
         this.options = new MqttConnectOptions();
         this.options.setAutomaticReconnect(true);
         this.options.setCleanSession(true);
-        this.options.setConnectionTimeout(10);
+        //this.options.setConnectionTimeout(10);
         this.commandsPublishTopic = commandsPublishTopic;
         this.infoSubscribeTopic = infoSubscribeTopic;
         this.onEventListeners = new ConcurrentHashMap<>();

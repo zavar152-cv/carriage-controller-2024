@@ -13,14 +13,17 @@ import javafx.scene.control.*;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.VBox;
+import lombok.extern.log4j.Log4j2;
 import org.eclipse.paho.client.mqttv3.IMqttToken;
 import org.eclipse.paho.client.mqttv3.MqttException;
+import ru.itmo.zavar.carriagecontroller.CarriageControllerApplication;
 import ru.itmo.zavar.carriagecontroller.mqtt.CarriageAsyncClient;
 
 import java.util.Objects;
 import java.util.ResourceBundle;
 import java.util.concurrent.ExecutorService;
 
+@Log4j2
 public final class ConnectionDialog extends Dialog<CarriageAsyncClient> {
 
     private final SimpleStringProperty connectedStringProperty = new SimpleStringProperty();
@@ -31,7 +34,6 @@ public final class ConnectionDialog extends Dialog<CarriageAsyncClient> {
         super.setTitle(resourceBundle.getString("dialog.connection.title"));
         super.setHeaderText(resourceBundle.getString("dialog.connection.headerText"));
         super.setGraphic(new ImageView(Objects.requireNonNull(AddPointDialog.class.getResource("/ru/itmo/zavar/carriagecontroller/img/connect.png")).toString()));
-        //ButtonType connectButtonType = new ButtonType(resourceBundle.getString("dialog.connection.connect"), ButtonBar.ButtonData.APPLY);
         ButtonType saveButtonType = new ButtonType(resourceBundle.getString("dialog.connection.save"), ButtonBar.ButtonData.OK_DONE);
         super.getDialogPane().getButtonTypes().addAll(saveButtonType, ButtonType.CANCEL);
         Button connectButton = new Button(resourceBundle.getString("dialog.connection.connect"));
@@ -41,19 +43,19 @@ public final class ConnectionDialog extends Dialog<CarriageAsyncClient> {
         Node saveNode = super.getDialogPane().lookupButton(saveButtonType);
         saveNode.setDisable(true);
 
-        connectedStringProperty.set((client != null && client.isConnected()) ?
+        this.connectedStringProperty.set((client != null && client.isConnected()) ?
                 resourceBundle.getString("dialog.connection.connected") :
-                resourceBundle.getString("dialog.connection.not_connected"));
+                resourceBundle.getString("dialog.connection.notConnected"));
 
-        addressStringProperty.set(client != null ? client.getBrokerUrl() : "");
+        this.addressStringProperty.set(client != null ? client.getBrokerUrl() : "");
 
         Form form = Form.of(Group.of(
-                Field.ofStringType(connectedStringProperty)
-                        .bind(connectedStringProperty)
+                Field.ofStringType(this.connectedStringProperty)
+                        .bind(this.connectedStringProperty)
                         .editable(false)
                         .label(resourceBundle.getString("dialog.connection.status")),
-                Field.ofStringType(addressStringProperty)
-                        .bind(addressStringProperty)
+                Field.ofStringType(this.addressStringProperty)
+                        .bind(this.addressStringProperty)
                         .validate(StringLengthValidator.atLeast(1, resourceBundle.getString("dialog.connection.addressError")))
                         .required(true)
                         .label(resourceBundle.getString("dialog.connection.address"))
@@ -75,25 +77,27 @@ public final class ConnectionDialog extends Dialog<CarriageAsyncClient> {
 
         connectButton.setOnMouseClicked(mouseEvent -> {
             if (mouseEvent.getButton().equals(MouseButton.PRIMARY)) {
-                Task<CarriageAsyncClient> connectTask = createNewTask(form, pi);
+                Task<CarriageAsyncClient> connectTask = createNewConnectionTask(resourceBundle, form, pi);
 
                 connectTask.setOnSucceeded(workerStateEvent -> {
+                    log.info("Connected to {}", addressStringProperty.get());
                     this.newClient = connectTask.getValue();
                     saveNode.setDisable(false);
                     disconnectButton.setDisable(false);
                     connectButton.disableProperty().unbind();
                     connectButton.setDisable(true);
                     pi.setVisible(false);
-                    connectedStringProperty.set(resourceBundle.getString("dialog.connection.connected"));
+                    this.connectedStringProperty.set(resourceBundle.getString("dialog.connection.connected"));
                 });
 
                 connectTask.setOnFailed(workerStateEvent -> {
-                    workerStateEvent.getSource().getException().printStackTrace();
+                    log.error("Connection to {} failed", addressStringProperty.get());
                     pi.setVisible(false);
-                    //TODO show error dialog
+                    CarriageControllerApplication.showErrorDialog(resourceBundle, workerStateEvent.getSource().getException());
                 });
 
                 connectTask.setOnRunning(workerStateEvent -> {
+                    log.info("Connecting...");
                     pi.setVisible(true);
                 });
 
@@ -103,14 +107,17 @@ public final class ConnectionDialog extends Dialog<CarriageAsyncClient> {
 
         disconnectButton.setOnMouseClicked(mouseEvent -> {
             if (this.newClient != null && this.newClient.isConnected()) {
+                log.info("Disconnecting from {}...", addressStringProperty.get());
                 try {
                     this.newClient.close();
                     disconnectButton.setDisable(true);
                     connectButton.setDisable(false);
                     saveNode.setDisable(true);
                     connectButton.disableProperty().bind(form.validProperty().not());
-                    connectedStringProperty.set(resourceBundle.getString("dialog.connection.not_connected"));
+                    this.connectedStringProperty.set(resourceBundle.getString("dialog.connection.notConnected"));
+                    log.info("Disconnected from {}...", addressStringProperty.get());
                 } catch (MqttException e) {
+                    CarriageControllerApplication.showErrorDialog(resourceBundle, e);
                     throw new RuntimeException(e);
                 }
             }
@@ -118,14 +125,14 @@ public final class ConnectionDialog extends Dialog<CarriageAsyncClient> {
 
         super.setResultConverter(buttonType -> {
             if (buttonType.equals(saveButtonType)) {
-                return newClient;
+                return this.newClient;
             }
             return null;
         });
     }
 
 
-    private Task<CarriageAsyncClient> createNewTask(Form form, ProgressIndicator pi) {
+    private Task<CarriageAsyncClient> createNewConnectionTask(ResourceBundle resourceBundle, Form form, ProgressIndicator pi) {
         return new Task<>() {
             @Override
             protected CarriageAsyncClient call() throws Exception {

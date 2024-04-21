@@ -2,9 +2,6 @@ package ru.itmo.zavar.carriagecontroller.ui;
 
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
-import javafx.beans.value.ObservableValue;
-import javafx.collections.FXCollections;
-import javafx.collections.ObservableList;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -21,8 +18,10 @@ import javafx.scene.shape.Rectangle;
 import javafx.stage.Stage;
 import lombok.Setter;
 import lombok.extern.log4j.Log4j2;
+import org.eclipse.paho.client.mqttv3.IMqttMessageListener;
 import org.eclipse.paho.client.mqttv3.IMqttToken;
 import org.eclipse.paho.client.mqttv3.MqttException;
+import ru.itmo.zavar.carriagecontroller.CarriageControllerApplication;
 import ru.itmo.zavar.carriagecontroller.carriage.ActionRunner;
 import ru.itmo.zavar.carriagecontroller.carriage.actions.CarriageAction;
 import ru.itmo.zavar.carriagecontroller.carriage.actions.GoToCarriageAction;
@@ -41,9 +40,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Optional;
 import java.util.ResourceBundle;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
 
 @Log4j2
 public class MainController implements Initializable {
@@ -72,6 +69,9 @@ public class MainController implements Initializable {
     @Setter
     private Stage primaryStage;
 
+    private volatile long lastMessageArrivedTime;
+    private final ScheduledExecutorService scheduledExecutorService;
+
     public MainController() {
         this.carriagePoints = new HashMap<>();
         this.drewPoints = new HashMap<>();
@@ -80,10 +80,12 @@ public class MainController implements Initializable {
         this.minYCoordinate = 0;
         this.maxYCoordinate = 100;
         this.executorService = Executors.newCachedThreadPool();
+        this.scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
     }
 
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
+        this.scheduledExecutorService.scheduleAtFixedRate(timeoutChecker(resourceBundle), 0, 5, TimeUnit.SECONDS);
         this.setCarriageRectanglePosition(0, this.minXCoordinate, this.maxXCoordinate);
         this.createStartAndEndPoints();
         this.addPointButton.setOnMouseClicked(this.onAddPointButtonClicked(resourceBundle));
@@ -164,7 +166,29 @@ public class MainController implements Initializable {
                     if (isClientConnected())
                         this.disconnectClient();
                     this.client = newClient;
+                    try {
+                        this.client.setOnMessageArrived(onCarriageMessageArrived());
+
+                    } catch (MqttException e) {
+                        throw new RuntimeException(e);
+                    }
                 });
+            }
+        };
+    }
+
+    private IMqttMessageListener onCarriageMessageArrived() {
+        return (s, mqttMessage) -> {
+            this.lastMessageArrivedTime = System.currentTimeMillis();
+        };
+    }
+
+    private Runnable timeoutChecker(ResourceBundle resourceBundle) {
+        return () -> {
+            if (System.currentTimeMillis() - lastMessageArrivedTime > 5000 && isClientConnected()) {
+                lastMessageArrivedTime = 0;
+                CarriageControllerApplication.showErrorDialog(resourceBundle, new IllegalStateException("Carriage is offline"));
+                this.disconnectClient();
             }
         };
     }
@@ -193,7 +217,7 @@ public class MainController implements Initializable {
         };
     }
 
-    private boolean isClientConnected() {
+    private synchronized boolean isClientConnected() {
         return this.client != null && this.client.isConnected();
     }
 
@@ -253,6 +277,7 @@ public class MainController implements Initializable {
         primaryStage.setOnCloseRequest(windowEvent -> {
             this.disconnectClient();
             this.executorService.shutdownNow();
+            this.scheduledExecutorService.shutdownNow();
             Platform.exit();
             System.exit(0);
         });
