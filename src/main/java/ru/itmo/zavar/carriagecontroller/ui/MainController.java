@@ -19,7 +19,6 @@ import javafx.stage.Stage;
 import lombok.Setter;
 import lombok.extern.log4j.Log4j2;
 import org.eclipse.paho.client.mqttv3.IMqttMessageListener;
-import org.eclipse.paho.client.mqttv3.IMqttToken;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import ru.itmo.zavar.carriagecontroller.CarriageControllerApplication;
 import ru.itmo.zavar.carriagecontroller.carriage.ActionRunner;
@@ -108,19 +107,13 @@ public class MainController implements Initializable {
 
         launchButton.setOnMouseClicked(mouseEvent -> {
             new Thread(() -> {
-                try (CarriageAsyncClient client = new CarriageAsyncClient("tcp://localhost:25565", "CC-app", "carriage/commands", "carriage/info")) {
-                    IMqttToken mqttToken = client.connect();
-                    client.addEventListener(e -> {
-                        if (e.equals(CarriageAsyncClient.ClientEvent.CONNECTION_LOST)) {
-                            log.error("Connection lost: {}, {}", client.getLastConnectionLostThrowable().getMessage(),
-                                    client.getLastConnectionLostThrowable().getCause());
-                        } else if (e.equals(CarriageAsyncClient.ClientEvent.CONNECT_COMPLETE)) {
-                            log.info("Connection complete");
-                        }
-                    }, "MainListener");
-                    mqttToken.waitForCompletion();
-                    InfoReceiver infoReceiver = new InfoReceiver(client);
-                    infoReceiver.addCurrentPositionChangeListener(newValue -> {
+                InfoReceiver infoReceiver;
+                try {
+                    infoReceiver = new InfoReceiver(client);
+                } catch (MqttException | InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                infoReceiver.addCurrentPositionChangeListener(newValue -> {
                         log.info("Position: {}", newValue);
                         this.setCarriageRectanglePosition(newValue, minXCoordinate, maxXCoordinate);
                     }, "MainPositionListener");
@@ -134,9 +127,6 @@ public class MainController implements Initializable {
                     }, "MainListener");
                     actionRunner.runAllActions();
                     while (true) ;
-                } catch (MqttException | InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
             }).start();
         });
     }
@@ -166,12 +156,7 @@ public class MainController implements Initializable {
                     if (isClientConnected())
                         this.disconnectClient();
                     this.client = newClient;
-                    try {
-                        this.client.setOnMessageArrived(onCarriageMessageArrived());
-
-                    } catch (MqttException e) {
-                        throw new RuntimeException(e);
-                    }
+                    this.client.addOnMessageArrived(onCarriageMessageArrived(), "MainController");
                 });
             }
         };

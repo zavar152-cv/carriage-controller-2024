@@ -35,7 +35,7 @@ public final class InfoReceiver {
         this.currentPositionChangeListeners = new ConcurrentHashMap<>();
         this.currentStatusChangeListeners = new ConcurrentHashMap<>();
 
-        this.carriageAsyncClient.setOnMessageArrived((s, mqttMessage) -> {
+        this.carriageAsyncClient.addOnMessageArrived((s, mqttMessage) -> {
             currentCarriageInfo = objectMapper.readValue(mqttMessage.getPayload(), CarriageInfo.class);
             if (previuosCarriageInfo == null) {
                 firstInfoArrived.countDown();
@@ -54,7 +54,7 @@ public final class InfoReceiver {
             if (!currentCarriageInfo.getCurrentStatus().equals(previuosCarriageInfo.getCurrentStatus()))
                 currentStatusChangeListeners.forEach((s1, listener) -> listener.onChange(currentCarriageInfo.getCurrentStatus()));
             previuosCarriageInfo = currentCarriageInfo;
-        });
+        }, "InfoReceiver");
         firstInfoArrived.await();
     }
 

@@ -12,6 +12,7 @@ public final class CarriageAsyncClient implements AutoCloseable {
     private final String commandsPublishTopic;
     private final String infoSubscribeTopic;
     private final ConcurrentHashMap<String, OnEventListener> onEventListeners;
+    private final ConcurrentHashMap<String, IMqttMessageListener> messageListeners;
     @Getter
     private final String brokerUrl;
     @Getter
@@ -28,11 +29,17 @@ public final class CarriageAsyncClient implements AutoCloseable {
         this.commandsPublishTopic = commandsPublishTopic;
         this.infoSubscribeTopic = infoSubscribeTopic;
         this.onEventListeners = new ConcurrentHashMap<>();
+        this.messageListeners = new ConcurrentHashMap<>();
         this.brokerUrl = brokerUrl;
         this.mqttAsyncClient.setCallback(new MqttCallbackExtended() {
             @Override
             public void connectComplete(boolean b, String s) {
                 onEventListeners.forEach((s1, onEventListener) -> onEventListener.onEvent(ClientEvent.CONNECT_COMPLETE));
+                try {
+                    subscribe();
+                } catch (MqttException e) {
+                    throw new RuntimeException(e);
+                }
             }
 
             @Override
@@ -80,8 +87,12 @@ public final class CarriageAsyncClient implements AutoCloseable {
         this.mqttAsyncClient.publish(this.commandsPublishTopic, message);
     }
 
-    public void setOnMessageArrived(IMqttMessageListener listener) throws MqttException {
-        this.mqttAsyncClient.subscribe(this.infoSubscribeTopic, mqttQos, listener);
+    public void addOnMessageArrived(IMqttMessageListener listener, String name) {
+        this.messageListeners.put(name, listener);
+    }
+
+    public void removeOnMessageArrived(String name) {
+        this.messageListeners.remove(name);
     }
 
     public void addEventListener(OnEventListener onEventListener, String name) {
@@ -96,6 +107,18 @@ public final class CarriageAsyncClient implements AutoCloseable {
     public void close() throws MqttException {
         this.mqttAsyncClient.disconnect();
         this.mqttAsyncClient.close();
+    }
+
+    private void subscribe() throws MqttException {
+        this.mqttAsyncClient.subscribe(this.infoSubscribeTopic, mqttQos, (s, mqttMessage) -> {
+            this.messageListeners.forEach((s1, iMqttMessageListener) -> {
+                try {
+                    iMqttMessageListener.messageArrived(s, mqttMessage);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            });
+        });
     }
 
     public enum ClientEvent {
