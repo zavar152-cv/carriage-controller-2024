@@ -6,6 +6,7 @@ import javafx.concurrent.Task;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
+import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.input.MouseButton;
@@ -22,21 +23,27 @@ import lombok.Setter;
 import lombok.extern.log4j.Log4j2;
 import org.eclipse.paho.client.mqttv3.IMqttMessageListener;
 import org.eclipse.paho.client.mqttv3.MqttException;
+import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
+import org.springframework.core.type.filter.AnnotationTypeFilter;
 import ru.itmo.zavar.carriagecontroller.CarriageControllerApplication;
 import ru.itmo.zavar.carriagecontroller.carriage.ActionRunner;
 import ru.itmo.zavar.carriagecontroller.carriage.actions.CarriageAction;
-import ru.itmo.zavar.carriagecontroller.carriage.actions.GoToCarriageAction;
 import ru.itmo.zavar.carriagecontroller.carriage.net.CommandSender;
 import ru.itmo.zavar.carriagecontroller.carriage.net.InfoReceiver;
 import ru.itmo.zavar.carriagecontroller.mqtt.CarriageAsyncClient;
+import ru.itmo.zavar.carriagecontroller.ui.actions.base.ActionUIComponent;
+import ru.itmo.zavar.carriagecontroller.ui.actions.base.CarriageActionUI;
+import ru.itmo.zavar.carriagecontroller.ui.actions.base.CarriageApplicationEnvironment;
 import ru.itmo.zavar.carriagecontroller.ui.data.CarriagePoint;
 import ru.itmo.zavar.carriagecontroller.ui.data.CoordinateBounds;
 import ru.itmo.zavar.carriagecontroller.ui.dialogs.AddPointDialog;
 import ru.itmo.zavar.carriagecontroller.ui.dialogs.BoundsDialog;
 import ru.itmo.zavar.carriagecontroller.ui.dialogs.ConnectionDialog;
-import ru.itmo.zavar.carriagecontroller.ui.dialogs.GoToCreatorDialog;
 
 import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
 import java.util.*;
 import java.util.concurrent.*;
@@ -54,7 +61,7 @@ public class MainController implements Initializable {
     @FXML
     private MenuBar menuBar;
     @FXML
-    private Button boundsButton, addPointButton, goToButton, launchButton, connectButton;
+    private Button boundsButton, addPointButton, launchButton, connectButton;
     @FXML
     private AnchorPane anchorPane;
     @FXML
@@ -76,6 +83,8 @@ public class MainController implements Initializable {
     private InfoReceiver infoReceiver;
     private CommandSender commandSender;
     private Properties properties;
+    private final Set<BeanDefinition> actionsBeanDefinition;
+    private CarriageApplicationEnvironment environment;
 
     public MainController() throws IOException {
         this.carriagePoints = new HashMap<>();
@@ -88,6 +97,9 @@ public class MainController implements Initializable {
         this.scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
         this.properties = new Properties();
         this.properties.load(Objects.requireNonNull(MainController.class.getResource("/ru/itmo/zavar/carriagecontroller/settings.properties")).openStream());
+        ClassPathScanningCandidateComponentProvider provider = new ClassPathScanningCandidateComponentProvider(false);
+        provider.addIncludeFilter(new AnnotationTypeFilter(ActionUIComponent.class));
+        this.actionsBeanDefinition = provider.findCandidateComponents("ru.itmo.zavar.carriagecontroller.ui.actions");
     }
 
     @Override
@@ -95,18 +107,13 @@ public class MainController implements Initializable {
         this.actionsTable.setPlaceholder(new Label(resourceBundle.getString("table.placeholder")));
         this.labelStatus.setText(resourceBundle.getString("status.offline"));
         this.circleStatus.setFill(Color.RED);
-        this.scheduledExecutorService.scheduleAtFixedRate(timeoutChecker(resourceBundle), 0, 2500, TimeUnit.MILLISECONDS);
+        this.scheduledExecutorService.scheduleAtFixedRate(timeoutChecker(resourceBundle), 0, Long.parseLong(this.properties.getProperty("info.timeout")), TimeUnit.MILLISECONDS);
         this.setCarriageRectanglePosition(0, this.minXCoordinate, this.maxXCoordinate);
         this.carriageRectangle.setVisible(false);
         this.launchButton.setDisable(true);
         this.createStartAndEndPoints();
         this.addPointButton.setOnMouseClicked(this.onAddPointButtonClicked(resourceBundle));
         this.boundsButton.setOnMouseClicked(this.onBoundsButtonClicked(resourceBundle));
-        this.goToButton.setOnMouseClicked(mouseEvent -> { //TODO move to external class
-            GoToCreatorDialog goToCreatorDialog = new GoToCreatorDialog(resourceBundle, carriagePoints);
-            Optional<GoToCarriageAction> goToCarriageAction = goToCreatorDialog.showAndWait();
-            goToCarriageAction.ifPresent(action -> this.actionsTable.getItems().add(action));
-        });
         this.connectButton.setOnMouseClicked(this.onConnectButtonClicked(resourceBundle));
 
         TableColumn<CarriageAction<?>, String> nameColumn = new TableColumn<>(resourceBundle.getString("table.actions"));
@@ -122,9 +129,27 @@ public class MainController implements Initializable {
 
         this.launchButton.setOnMouseClicked(mouseEvent -> {
             if (!this.actionsTable.getItems().isEmpty()) {
-                this.executorService.submit(this::programCreatorAndRunner);
+                this.executorService.submit(this.programCreatorAndRunner());
             } else {
                 CarriageControllerApplication.showWarningDialog(resourceBundle, resourceBundle.getString("dialog.warning.emptyTable"));
+            }
+        });
+
+        this.environment = new CarriageApplicationEnvironment(actionsTable, carriagePoints, executorService, client,
+                infoReceiver, commandSender, properties, resourceBundle);
+
+        this.actionsBeanDefinition.forEach(beanDefinition -> {
+            Class<?> c;
+            try {
+                c = Class.forName(beanDefinition.getBeanClassName());
+                Constructor<?> cons = c.getConstructor();
+                CarriageActionUI actionUi = (CarriageActionUI) cons.newInstance();
+                Node actionNode = actionUi.getActionNode(resourceBundle);
+                this.actionsTilePane.getChildren().add(actionNode);
+                actionUi.applyActionEventHandler(this.environment);
+            } catch (ClassNotFoundException | NoSuchMethodException | InstantiationException | IllegalAccessException |
+                     InvocationTargetException e) {
+                throw new RuntimeException(e);
             }
         });
     }
@@ -162,11 +187,13 @@ public class MainController implements Initializable {
                     if (this.isClientConnected())
                         this.disconnectClient();
                     this.client = newClient;
+                    this.environment.setClient(this.client);
                     this.client.addOnMessageArrived(this.onCarriageMessageArrived(), "MainController");
                     try {
                         if (this.infoReceiver != null)
                             this.infoReceiver.clearAllListeners();
                         this.infoReceiver = new InfoReceiver(this.client);
+                        this.environment.setInfoReceiver(this.infoReceiver);
 
                         Task<Void> task = this.firstInfoArrived();
 
@@ -178,6 +205,7 @@ public class MainController implements Initializable {
                         task.setOnSucceeded(workerStateEvent -> {
                             this.infoReceiver.addCurrentPositionChangeListener(this.onCarriagePositionChange(), "MainPositionListener");
                             this.commandSender = new CommandSender(this.client);
+                            this.environment.setCommandSender(this.commandSender);
                             Float currentPosition = this.infoReceiver.getCurrentCarriageInfo().getCurrentPosition();
                             this.setCarriageRectanglePosition(currentPosition, this.minXCoordinate, this.maxXCoordinate);
                             this.carriageRectangle.setVisible(true);

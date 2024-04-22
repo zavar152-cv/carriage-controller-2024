@@ -13,6 +13,9 @@ module ru.itmo.zavar.carriagecontroller {
     requires com.fasterxml.jackson.databind;
     requires com.fasterxml.jackson.annotation;
     requires org.apache.logging.log4j;
+    requires spring.context;
+    requires spring.beans;
+    requires spring.core;
 
     opens ru.itmo.zavar.carriagecontroller to javafx.fxml;
     exports ru.itmo.zavar.carriagecontroller;

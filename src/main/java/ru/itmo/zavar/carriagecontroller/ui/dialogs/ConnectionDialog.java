@@ -108,7 +108,7 @@ public final class ConnectionDialog extends Dialog<CarriageAsyncClient> {
 
         disconnectButton.setOnMouseClicked(mouseEvent -> {
             if (this.newClient != null && this.newClient.isConnected()) {
-                log.info("Disconnecting from {}...", addressStringProperty.get());
+                log.info("Disconnecting from {}...", this.addressStringProperty.get());
                 try {
                     this.newClient.close();
                     disconnectButton.setDisable(true);
@@ -116,7 +116,7 @@ public final class ConnectionDialog extends Dialog<CarriageAsyncClient> {
                     saveNode.setDisable(false);
                     connectButton.disableProperty().bind(form.validProperty().not());
                     this.connectedStringProperty.set(resourceBundle.getString("dialog.connection.notConnected"));
-                    log.info("Disconnected from {}...", addressStringProperty.get());
+                    log.info("Disconnected from {}...", this.addressStringProperty.get());
                 } catch (MqttException e) {
                     CarriageControllerApplication.showErrorDialog(resourceBundle, e);
                     throw new RuntimeException(e);

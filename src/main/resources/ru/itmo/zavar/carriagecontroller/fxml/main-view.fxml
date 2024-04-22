@@ -36,9 +36,6 @@
                            </children>
                         </VBox>
                         <TilePane fx:id="actionsTilePane" alignment="BASELINE_LEFT" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="150.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
-                           <children>
-                              <Button fx:id="goToButton" mnemonicParsing="false" text="%actions.goto" />
-                           </children>
                            <padding>
                               <Insets bottom="8.0" left="8.0" right="8.0" top="8.0" />
                            </padding>
