@@ -2,6 +2,7 @@
 
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
 <?import javafx.scene.control.Menu?>
 <?import javafx.scene.control.MenuBar?>
 <?import javafx.scene.control.MenuItem?>
@@ -9,8 +10,10 @@
 <?import javafx.scene.control.TabPane?>
 <?import javafx.scene.control.TableView?>
 <?import javafx.scene.layout.AnchorPane?>
+<?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.TilePane?>
 <?import javafx.scene.layout.VBox?>
+<?import javafx.scene.shape.Circle?>
 <?import javafx.scene.shape.Line?>
 <?import javafx.scene.shape.Rectangle?>
 
@@ -65,5 +68,14 @@
           </Menu>
         </menus>
       </MenuBar>
+      <HBox alignment="CENTER_LEFT" layoutY="344.0" prefHeight="36.0" prefWidth="109.0" spacing="10.0" AnchorPane.bottomAnchor="220.0" AnchorPane.leftAnchor="0.0">
+         <children>
+            <Circle fx:id="circleStatus" fill="#ff1f1f" radius="6.0" stroke="BLACK" strokeType="INSIDE" />
+            <Label fx:id="labelStatus" />
+         </children>
+         <padding>
+            <Insets left="10.0" />
+         </padding>
+      </HBox>
    </children>
 </AnchorPane>

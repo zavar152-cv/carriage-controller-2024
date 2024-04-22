@@ -20,6 +20,7 @@ import ru.itmo.zavar.carriagecontroller.CarriageControllerApplication;
 import ru.itmo.zavar.carriagecontroller.mqtt.CarriageAsyncClient;
 
 import java.util.Objects;
+import java.util.Properties;
 import java.util.ResourceBundle;
 import java.util.concurrent.ExecutorService;
 
@@ -27,10 +28,10 @@ import java.util.concurrent.ExecutorService;
 public final class ConnectionDialog extends Dialog<CarriageAsyncClient> {
 
     private final SimpleStringProperty connectedStringProperty = new SimpleStringProperty();
-    private final SimpleStringProperty addressStringProperty = new SimpleStringProperty();
+    private final SimpleStringProperty addressStringProperty = new SimpleStringProperty(); //tcp://localhost:25565
     private CarriageAsyncClient newClient;
 
-    public ConnectionDialog(ExecutorService executorService, ResourceBundle resourceBundle, CarriageAsyncClient client) {
+    public ConnectionDialog(ExecutorService executorService, ResourceBundle resourceBundle, CarriageAsyncClient client, Properties properties) {
         super.setTitle(resourceBundle.getString("dialog.connection.title"));
         super.setHeaderText(resourceBundle.getString("dialog.connection.headerText"));
         super.setGraphic(new ImageView(Objects.requireNonNull(AddPointDialog.class.getResource("/ru/itmo/zavar/carriagecontroller/img/connect.png")).toString()));
@@ -77,7 +78,7 @@ public final class ConnectionDialog extends Dialog<CarriageAsyncClient> {
 
         connectButton.setOnMouseClicked(mouseEvent -> {
             if (mouseEvent.getButton().equals(MouseButton.PRIMARY)) {
-                Task<CarriageAsyncClient> connectTask = createNewConnectionTask(resourceBundle, form, pi);
+                Task<CarriageAsyncClient> connectTask = createNewConnectionTask(form, pi, properties);
 
                 connectTask.setOnSucceeded(workerStateEvent -> {
                     log.info("Connected to {}", addressStringProperty.get());
@@ -112,7 +113,7 @@ public final class ConnectionDialog extends Dialog<CarriageAsyncClient> {
                     this.newClient.close();
                     disconnectButton.setDisable(true);
                     connectButton.setDisable(false);
-                    saveNode.setDisable(true);
+                    saveNode.setDisable(false);
                     connectButton.disableProperty().bind(form.validProperty().not());
                     this.connectedStringProperty.set(resourceBundle.getString("dialog.connection.notConnected"));
                     log.info("Disconnected from {}...", addressStringProperty.get());
@@ -142,13 +143,14 @@ public final class ConnectionDialog extends Dialog<CarriageAsyncClient> {
     }
 
 
-    private Task<CarriageAsyncClient> createNewConnectionTask(ResourceBundle resourceBundle, Form form, ProgressIndicator pi) {
+    private Task<CarriageAsyncClient> createNewConnectionTask(Form form, ProgressIndicator pi, Properties properties) {
         return new Task<>() {
             @Override
             protected CarriageAsyncClient call() throws Exception {
                 form.persist();
                 try {
-                    CarriageAsyncClient carriageAsyncClient = new CarriageAsyncClient(addressStringProperty.get(), "CC-app", "carriage/commands", "carriage/info");
+                    CarriageAsyncClient carriageAsyncClient = new CarriageAsyncClient(addressStringProperty.get(),
+                            properties.getProperty("mqtt.clientId"), properties.getProperty("mqtt.commandsPublishTopic"), properties.getProperty("mqtt.infoSubscribeTopic"));
                     IMqttToken mqttToken = carriageAsyncClient.connect();
                     pi.setDisable(false);
                     mqttToken.waitForCompletion();

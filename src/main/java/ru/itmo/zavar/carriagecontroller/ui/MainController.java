@@ -12,6 +12,7 @@ import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.TilePane;
+import javafx.scene.paint.Color;
 import javafx.scene.paint.Paint;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Line;
@@ -35,11 +36,9 @@ import ru.itmo.zavar.carriagecontroller.ui.dialogs.BoundsDialog;
 import ru.itmo.zavar.carriagecontroller.ui.dialogs.ConnectionDialog;
 import ru.itmo.zavar.carriagecontroller.ui.dialogs.GoToCreatorDialog;
 
+import java.io.IOException;
 import java.net.URL;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.Optional;
-import java.util.ResourceBundle;
+import java.util.*;
 import java.util.concurrent.*;
 
 @Log4j2
@@ -60,6 +59,10 @@ public class MainController implements Initializable {
     private AnchorPane anchorPane;
     @FXML
     private TableView<CarriageAction<?>> actionsTable;
+    @FXML
+    private Circle circleStatus;
+    @FXML
+    private Label labelStatus;
 
     private double minXCoordinate, maxXCoordinate, minYCoordinate, maxYCoordinate;
     private final HashMap<String, CarriagePoint> carriagePoints;
@@ -72,8 +75,9 @@ public class MainController implements Initializable {
     private final ScheduledExecutorService scheduledExecutorService;
     private InfoReceiver infoReceiver;
     private CommandSender commandSender;
+    private Properties properties;
 
-    public MainController() {
+    public MainController() throws IOException {
         this.carriagePoints = new HashMap<>();
         this.drewPoints = new HashMap<>();
         this.minXCoordinate = 0;
@@ -82,10 +86,14 @@ public class MainController implements Initializable {
         this.maxYCoordinate = 100;
         this.executorService = Executors.newCachedThreadPool();
         this.scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
+        this.properties = new Properties();
+        this.properties.load(Objects.requireNonNull(MainController.class.getResource("/ru/itmo/zavar/carriagecontroller/settings.properties")).openStream());
     }
 
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
+        this.labelStatus.setText(resourceBundle.getString("status.offline"));
+        this.circleStatus.setFill(Color.RED);
         this.scheduledExecutorService.scheduleAtFixedRate(timeoutChecker(resourceBundle), 0, 5, TimeUnit.SECONDS);
         this.setCarriageRectanglePosition(0, this.minXCoordinate, this.maxXCoordinate);
         this.carriageRectangle.setVisible(false);
@@ -102,11 +110,13 @@ public class MainController implements Initializable {
 
         TableColumn<CarriageAction<?>, String> nameColumn = new TableColumn<>(resourceBundle.getString("table.actions"));
         nameColumn.setCellValueFactory(new PropertyValueFactory<>("actionName"));
+        nameColumn.prefWidthProperty().bind(this.actionsTable.widthProperty().multiply(0.5));
         this.actionsTable.getColumns().add(nameColumn);
 
         TableColumn<CarriageAction<?>, String> argumentColumn = new TableColumn<>(resourceBundle.getString("table.argument"));
         argumentColumn.setCellValueFactory(carriageActionStringCellDataFeatures ->
                 new SimpleStringProperty(carriageActionStringCellDataFeatures.getValue().getArgumentAsReadableString()));
+        argumentColumn.prefWidthProperty().bind(this.actionsTable.widthProperty().multiply(0.5));
         this.actionsTable.getColumns().add(argumentColumn);
 
         launchButton.setOnMouseClicked(mouseEvent -> { //TODO check for empty table
@@ -143,9 +153,17 @@ public class MainController implements Initializable {
     private EventHandler<MouseEvent> onConnectButtonClicked(ResourceBundle resourceBundle) {
         return mouseEvent -> {
             if (mouseEvent.getButton().equals(MouseButton.PRIMARY)) {
-                ConnectionDialog connectionDialog = new ConnectionDialog(executorService, resourceBundle, this.client);
+                ConnectionDialog connectionDialog = new ConnectionDialog(this.executorService, resourceBundle, this.client, this.properties);
                 Optional<CarriageAsyncClient> carriageAsyncClient = connectionDialog.showAndWait();
                 carriageAsyncClient.ifPresent(newClient -> {
+                    if(!newClient.isConnected()) {
+                        this.labelStatus.setText(resourceBundle.getString("status.offline"));
+                        this.circleStatus.setFill(Color.RED);
+                        this.infoReceiver.clearAllListeners();
+                        this.carriageRectangle.setVisible(false);
+                        this.launchButton.setDisable(true);
+                        return;
+                    }
                     if (isClientConnected())
                         this.disconnectClient();
                     this.client = newClient;
@@ -157,6 +175,11 @@ public class MainController implements Initializable {
 
                         Task<Void> task = firstInfoArrived();
 
+                        task.setOnRunning(workerStateEvent -> {
+                            this.labelStatus.setText(resourceBundle.getString("status.pinging"));
+                            this.circleStatus.setFill(Color.YELLOW);
+                        });
+
                         task.setOnSucceeded(workerStateEvent -> {
                             this.infoReceiver.addCurrentPositionChangeListener(onCarriagePositionChange(), "MainPositionListener");
                             this.commandSender = new CommandSender(this.client);
@@ -164,12 +187,11 @@ public class MainController implements Initializable {
                             this.setCarriageRectanglePosition(currentPosition, minXCoordinate, maxXCoordinate);
                             this.carriageRectangle.setVisible(true);
                             this.launchButton.setDisable(false);
+                            this.labelStatus.setText(resourceBundle.getString("status.online"));
+                            this.circleStatus.setFill(Color.GREEN);
                         });
 
-                        task.setOnFailed(workerStateEvent -> {
-                            CarriageControllerApplication.showErrorDialog(resourceBundle, new IllegalStateException("Carriage is offline"));
-                            this.disconnectClient();
-                        });
+                        task.setOnFailed(workerStateEvent -> carriageIsOffline(resourceBundle));
 
                         executorService.submit(task);
 
@@ -203,10 +225,16 @@ public class MainController implements Initializable {
         return () -> {
             if (System.currentTimeMillis() - lastMessageArrivedTime > 5000 && isClientConnected() && this.infoReceiver.isReady()) {
                 lastMessageArrivedTime = 0;
-                CarriageControllerApplication.showErrorDialog(resourceBundle, new IllegalStateException("Carriage is offline"));
-                this.disconnectClient();
+                carriageIsOffline(resourceBundle);
             }
         };
+    }
+
+    private void carriageIsOffline(ResourceBundle resourceBundle) {
+        this.labelStatus.setText(resourceBundle.getString("status.offline"));
+        this.circleStatus.setFill(Color.RED);
+        this.disconnectClient();
+        CarriageControllerApplication.showErrorDialog(resourceBundle, new IllegalStateException("Carriage is offline"));
     }
 
     private InfoReceiver.OnInfoChangeListener<Float> onCarriagePositionChange() {
