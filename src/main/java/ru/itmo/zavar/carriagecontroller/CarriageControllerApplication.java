@@ -41,6 +41,14 @@ public final class CarriageControllerApplication extends Application {
         launch();
     }
 
+    public static void showWarningDialog(ResourceBundle resourceBundle, String content) {
+        Alert alert = new Alert(Alert.AlertType.WARNING);
+        alert.setTitle(resourceBundle.getString("dialog.warning.title"));
+        alert.setHeaderText(resourceBundle.getString("dialog.warning.headerText"));
+        alert.setContentText(content);
+        alert.showAndWait();
+    }
+
     public static void showErrorDialog(ResourceBundle resourceBundle, Throwable e) {
         Platform.runLater(() -> {
             Alert alert = new Alert(Alert.AlertType.ERROR);

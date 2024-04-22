@@ -92,9 +92,10 @@ public class MainController implements Initializable {
 
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
+        this.actionsTable.setPlaceholder(new Label(resourceBundle.getString("table.placeholder")));
         this.labelStatus.setText(resourceBundle.getString("status.offline"));
         this.circleStatus.setFill(Color.RED);
-        this.scheduledExecutorService.scheduleAtFixedRate(timeoutChecker(resourceBundle), 0, 5, TimeUnit.SECONDS);
+        this.scheduledExecutorService.scheduleAtFixedRate(timeoutChecker(resourceBundle), 0, 2500, TimeUnit.MILLISECONDS);
         this.setCarriageRectanglePosition(0, this.minXCoordinate, this.maxXCoordinate);
         this.carriageRectangle.setVisible(false);
         this.launchButton.setDisable(true);
@@ -119,18 +120,12 @@ public class MainController implements Initializable {
         argumentColumn.prefWidthProperty().bind(this.actionsTable.widthProperty().multiply(0.5));
         this.actionsTable.getColumns().add(argumentColumn);
 
-        launchButton.setOnMouseClicked(mouseEvent -> { //TODO check for empty table
-            new Thread(() -> {
-                LinkedList<CarriageAction<?>> actions = new LinkedList<>(actionsTable.getItems());
-                ActionRunner actionRunner = new ActionRunner(infoReceiver, commandSender, actions);
-//                actionRunner.enableStepMode();
-//                actionRunner.addEventListener(e -> {
-//                    if (e.equals(ActionRunner.ActionEvent.ACTION_COMPLETE) && actionRunner.isStepModeEnabled())
-//                        actionRunner.step();
-//                }, "MainListener");
-                actionRunner.runAllActions();
-//                while (true) ;
-            }).start();
+        this.launchButton.setOnMouseClicked(mouseEvent -> {
+            if (!this.actionsTable.getItems().isEmpty()) {
+                this.executorService.submit(this::programCreatorAndRunner);
+            } else {
+                CarriageControllerApplication.showWarningDialog(resourceBundle, resourceBundle.getString("dialog.warning.emptyTable"));
+            }
         });
     }
 
@@ -164,16 +159,16 @@ public class MainController implements Initializable {
                         this.launchButton.setDisable(true);
                         return;
                     }
-                    if (isClientConnected())
+                    if (this.isClientConnected())
                         this.disconnectClient();
                     this.client = newClient;
-                    this.client.addOnMessageArrived(onCarriageMessageArrived(), "MainController");
+                    this.client.addOnMessageArrived(this.onCarriageMessageArrived(), "MainController");
                     try {
                         if (this.infoReceiver != null)
                             this.infoReceiver.clearAllListeners();
                         this.infoReceiver = new InfoReceiver(this.client);
 
-                        Task<Void> task = firstInfoArrived();
+                        Task<Void> task = this.firstInfoArrived();
 
                         task.setOnRunning(workerStateEvent -> {
                             this.labelStatus.setText(resourceBundle.getString("status.pinging"));
@@ -181,10 +176,10 @@ public class MainController implements Initializable {
                         });
 
                         task.setOnSucceeded(workerStateEvent -> {
-                            this.infoReceiver.addCurrentPositionChangeListener(onCarriagePositionChange(), "MainPositionListener");
+                            this.infoReceiver.addCurrentPositionChangeListener(this.onCarriagePositionChange(), "MainPositionListener");
                             this.commandSender = new CommandSender(this.client);
                             Float currentPosition = this.infoReceiver.getCurrentCarriageInfo().getCurrentPosition();
-                            this.setCarriageRectanglePosition(currentPosition, minXCoordinate, maxXCoordinate);
+                            this.setCarriageRectanglePosition(currentPosition, this.minXCoordinate, this.maxXCoordinate);
                             this.carriageRectangle.setVisible(true);
                             this.launchButton.setDisable(false);
                             this.labelStatus.setText(resourceBundle.getString("status.online"));
@@ -193,7 +188,7 @@ public class MainController implements Initializable {
 
                         task.setOnFailed(workerStateEvent -> carriageIsOffline(resourceBundle));
 
-                        executorService.submit(task);
+                        this.executorService.submit(task);
 
                     } catch (MqttException | InterruptedException e) {
                         throw new RuntimeException(e);
@@ -223,10 +218,23 @@ public class MainController implements Initializable {
 
     private Runnable timeoutChecker(ResourceBundle resourceBundle) {
         return () -> {
-            if (System.currentTimeMillis() - lastMessageArrivedTime > 5000 && isClientConnected() && this.infoReceiver.isReady()) {
-                lastMessageArrivedTime = 0;
-                carriageIsOffline(resourceBundle);
+            if (System.currentTimeMillis() - this.lastMessageArrivedTime > 5000 && isClientConnected() && this.infoReceiver.isReady()) {
+                this.lastMessageArrivedTime = 0;
+                Platform.runLater(() -> this.carriageIsOffline(resourceBundle));
             }
+        };
+    }
+
+    private Runnable programCreatorAndRunner() {
+        return () -> {
+            LinkedList<CarriageAction<?>> actions = new LinkedList<>(this.actionsTable.getItems());
+            ActionRunner actionRunner = new ActionRunner(this.infoReceiver, this.commandSender, actions);
+//                actionRunner.enableStepMode();
+//                actionRunner.addEventListener(e -> {
+//                    if (e.equals(ActionRunner.ActionEvent.ACTION_COMPLETE) && actionRunner.isStepModeEnabled())
+//                        actionRunner.step();
+//                }, "MainListener");
+            actionRunner.runAllActions();
         };
     }
 
@@ -234,24 +242,24 @@ public class MainController implements Initializable {
         this.labelStatus.setText(resourceBundle.getString("status.offline"));
         this.circleStatus.setFill(Color.RED);
         this.disconnectClient();
-        CarriageControllerApplication.showErrorDialog(resourceBundle, new IllegalStateException("Carriage is offline"));
+        CarriageControllerApplication.showErrorDialog(resourceBundle, new IllegalStateException(resourceBundle.getString("dialog.error.carriageOffline")));
     }
 
     private InfoReceiver.OnInfoChangeListener<Float> onCarriagePositionChange() {
         return newValue -> {
             log.info("Position: {}", newValue);
-            this.setCarriageRectanglePosition(newValue, minXCoordinate, maxXCoordinate);
+            this.setCarriageRectanglePosition(newValue, this.minXCoordinate, this.maxXCoordinate);
         };
     }
 
     private void createStartAndEndPoints() {
         CarriagePoint start = new CarriagePoint("Start", this.minXCoordinate, this.minYCoordinate);
         this.carriagePoints.put(start.name(), start);
-        this.drawPoint(start.name(), start.x(), Paint.valueOf("green"));
+        this.drawPoint(start.name(), start.x(), Color.ORANGE);
 
         CarriagePoint end = new CarriagePoint("End", this.maxXCoordinate, this.minYCoordinate);
         this.carriagePoints.put(end.name(), end);
-        this.drawPoint(end.name(), end.x(), Paint.valueOf("green"));
+        this.drawPoint(end.name(), end.x(), Color.ORANGE);
     }
 
     private EventHandler<MouseEvent> onAddPointButtonClicked(ResourceBundle resourceBundle) {
@@ -262,7 +270,7 @@ public class MainController implements Initializable {
                 Optional<CarriagePoint> carriagePoint = addPointDialog.showAndWait();
                 carriagePoint.ifPresent(value -> {
                     this.carriagePoints.put(value.name(), value);
-                    this.drawPoint(value.name(), value.x(), Paint.valueOf("green"));
+                    this.drawPoint(value.name(), value.x(), Color.VIOLET);
                 });
             }
         };
@@ -279,11 +287,11 @@ public class MainController implements Initializable {
     }
 
     private void drawPoint(String name, double x) {
-        drawPoint(name, x, Paint.valueOf("black"));
+        drawPoint(name, x, Color.BLACK);
     }
 
     private void drawPoint(String name, double x, Paint fill) {
-        double mapped = this.map(x, minXCoordinate, maxXCoordinate, this.ropeLine.getStartX(), this.ropeLine.getEndX());
+        double mapped = this.map(x, this.minXCoordinate, this.maxXCoordinate, this.ropeLine.getStartX(), this.ropeLine.getEndX());
         Circle point = new Circle(5, fill);
         point.setStrokeWidth(1);
         point.setStroke(Paint.valueOf("black"));
@@ -295,23 +303,6 @@ public class MainController implements Initializable {
 
     private double map(double x, double inMin, double inMax, double outMin, double outMax) {
         return (x - inMin) * (outMax - outMin) / (inMax - inMin) + outMin;
-    }
-
-    private LinkedList<CarriageAction<?>> getCarriageActions() {
-        LinkedList<CarriageAction<?>> actions = new LinkedList<>();
-        GoToCarriageAction goToCarriageAction1 = new GoToCarriageAction(new Float[]{1000.0f, 60.0f});
-        GoToCarriageAction goToCarriageAction2 = new GoToCarriageAction(new Float[]{0000.0f, 60.0f});
-        GoToCarriageAction goToCarriageAction3 = new GoToCarriageAction(new Float[]{2000.0f, 60.0f});
-        GoToCarriageAction goToCarriageAction4 = new GoToCarriageAction(new Float[]{1500.0f, 60.0f});
-        GoToCarriageAction goToCarriageAction5 = new GoToCarriageAction(new Float[]{0000.0f, 80.0f});
-        GoToCarriageAction goToCarriageAction6 = new GoToCarriageAction(new Float[]{3000.0f, 80.0f});
-        actions.add(goToCarriageAction1);
-        actions.add(goToCarriageAction2);
-        actions.add(goToCarriageAction3);
-        actions.add(goToCarriageAction4);
-        actions.add(goToCarriageAction5);
-        actions.add(goToCarriageAction6);
-        return actions;
     }
 
     private void disconnectClient() {
