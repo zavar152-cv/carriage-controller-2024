@@ -3,25 +3,19 @@ package ru.itmo.zavar.carriagecontroller.ui.dialogs;
 import com.dlsc.formsfx.model.structure.Field;
 import com.dlsc.formsfx.model.structure.Form;
 import com.dlsc.formsfx.model.structure.Group;
-import com.dlsc.formsfx.model.validators.DoubleRangeValidator;
-import com.dlsc.formsfx.model.validators.StringLengthValidator;
 import com.dlsc.formsfx.view.renderer.FormRenderer;
 import javafx.beans.property.SimpleDoubleProperty;
-import javafx.beans.property.SimpleStringProperty;
-import javafx.geometry.Insets;
-import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Dialog;
 import javafx.scene.image.ImageView;
-import ru.itmo.zavar.carriagecontroller.ui.data.CarriagePoint;
 import ru.itmo.zavar.carriagecontroller.ui.data.CoordinateBounds;
 
 import java.util.Objects;
 import java.util.ResourceBundle;
 
-public class BoundsDialog extends Dialog<CoordinateBounds> {
+public final class BoundsDialog extends Dialog<CoordinateBounds> {
 
     private final SimpleDoubleProperty xMaxDoubleProperty = new SimpleDoubleProperty();
     private final SimpleDoubleProperty yMaxDoubleProperty = new SimpleDoubleProperty();

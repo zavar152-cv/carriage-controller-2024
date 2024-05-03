@@ -19,7 +19,7 @@ import java.util.HashMap;
 import java.util.Objects;
 import java.util.ResourceBundle;
 
-public class GoToCreatorDialog extends Dialog<GoToCarriageAction> {
+public final class GoToCreatorDialog extends Dialog<GoToCarriageAction> {
 
     private final SimpleObjectProperty<String> pointObjectListProperty = new SimpleObjectProperty<>();
     private final SimpleDoubleProperty speedDoubleProperty = new SimpleDoubleProperty();

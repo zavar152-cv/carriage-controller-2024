@@ -6,30 +6,30 @@ import ru.itmo.zavar.carriagecontroller.mqtt.pojo.CarriageInfo;
 
 import java.util.ArrayList;
 
-public class GoToCarriageAction extends CarriageAction<Float[]> {
+public final class GoToCarriageAction extends CarriageAction<Float[]> {
 
     public GoToCarriageAction(Float[] actionArgument) {
-        super("GoToPosition", "...", actionArgument, new CarriageCommand<Void>("reset_status"));
+        super("GoToPosition", "...", actionArgument, new CarriageCommand<Void>("reset_status", (byte) 0));
     }
 
     @Override
     public ArrayList<CarriageCommand<?>> toCommands(CarriageInfo carriageInfo) {
         ArrayList<CarriageCommand<?>> commands = new ArrayList<>();
         Float currentPosition = carriageInfo.getCurrentPosition();
-        CarriageCommand<Byte> directionCommand = new CarriageCommand<>("direction");
+        CarriageCommand<Byte> directionCommand = new CarriageCommand<>("direction", (byte) 0);
         if (getActionArgument()[0] >= currentPosition) {
             directionCommand.setArgument((byte) 0);
         } else {
             directionCommand.setArgument((byte) 1);
         }
         commands.add(directionCommand);
-        CarriageCommand<Float> targetSpeedCommand = new CarriageCommand<>("target_speed");
+        CarriageCommand<Float> targetSpeedCommand = new CarriageCommand<>("target_speed", (byte) 0);
         targetSpeedCommand.setArgument(getActionArgument()[1]);
         commands.add(targetSpeedCommand);
-        CarriageCommand<Float> targetPositionCommand = new CarriageCommand<>("target_position");
+        CarriageCommand<Float> targetPositionCommand = new CarriageCommand<>("target_position", (byte) 0);
         targetPositionCommand.setArgument(getActionArgument()[0]);
         commands.add(targetPositionCommand);
-        CarriageCommand<Float> enableMotorsCommand = new CarriageCommand<>("enable_motors");
+        CarriageCommand<Float> enableMotorsCommand = new CarriageCommand<>("enable_motors", (byte) 0);
         commands.add(enableMotorsCommand);
         return commands;
     }

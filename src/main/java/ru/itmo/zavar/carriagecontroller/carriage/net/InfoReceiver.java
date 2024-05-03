@@ -25,6 +25,7 @@ public final class InfoReceiver {
     private final ConcurrentHashMap<String, OnInfoChangeListener<Float>> targetPositionChangeListeners;
     private final ConcurrentHashMap<String, OnInfoChangeListener<Float>> currentPositionChangeListeners;
     private final ConcurrentHashMap<String, OnInfoChangeListener<Byte>> currentStatusChangeListeners;
+    private final ConcurrentHashMap<String, OnInfoChangeListener<Byte>> externalModuleStatusChangeListeners;
 
     private final CountDownLatch firstInfoArrived = new CountDownLatch(1);
 
@@ -37,6 +38,7 @@ public final class InfoReceiver {
         this.targetPositionChangeListeners = new ConcurrentHashMap<>();
         this.currentPositionChangeListeners = new ConcurrentHashMap<>();
         this.currentStatusChangeListeners = new ConcurrentHashMap<>();
+        this.externalModuleStatusChangeListeners = new ConcurrentHashMap<>();
 
         this.carriageAsyncClient.addOnMessageArrived((s, mqttMessage) -> {
             currentCarriageInfo = objectMapper.readValue(mqttMessage.getPayload(), CarriageInfo.class);
@@ -56,6 +58,8 @@ public final class InfoReceiver {
                 currentPositionChangeListeners.forEach((s1, listener) -> listener.onChange(currentCarriageInfo.getCurrentPosition()));
             if (!currentCarriageInfo.getCurrentStatus().equals(previuosCarriageInfo.getCurrentStatus()))
                 currentStatusChangeListeners.forEach((s1, listener) -> listener.onChange(currentCarriageInfo.getCurrentStatus()));
+            if (!currentCarriageInfo.getExternalModuleStatus().equals(previuosCarriageInfo.getExternalModuleStatus()))
+                externalModuleStatusChangeListeners.forEach((s1, listener) -> listener.onChange(currentCarriageInfo.getExternalModuleStatus()));
             previuosCarriageInfo = currentCarriageInfo;
         }, "InfoReceiver");
     }
@@ -73,6 +77,7 @@ public final class InfoReceiver {
         targetPositionChangeListeners.clear();
         currentPositionChangeListeners.clear();
         currentStatusChangeListeners.clear();
+        externalModuleStatusChangeListeners.clear();
     }
 
     public void addCarriageInfoChangeListener(OnInfoChangeListener<CarriageInfo> listener, String name) {
@@ -121,6 +126,14 @@ public final class InfoReceiver {
 
     public void removeCurrentStatusChangeListener(String name) {
         currentStatusChangeListeners.remove(name);
+    }
+
+    public void addExternalModuleStatusChangeListener(OnInfoChangeListener<Byte> listener, String name) {
+        externalModuleStatusChangeListeners.put(name, listener);
+    }
+
+    public void removeExternalModuleStatusChangeListener(String name) {
+        externalModuleStatusChangeListeners.remove(name);
     }
 
     @FunctionalInterface

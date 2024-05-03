@@ -49,7 +49,7 @@ import java.util.*;
 import java.util.concurrent.*;
 
 @Log4j2
-public class MainController implements Initializable {
+public final class MainController implements Initializable {
     @FXML
     private Rectangle carriageRectangle;
     @FXML

@@ -7,7 +7,7 @@ import ru.itmo.zavar.carriagecontroller.mqtt.pojo.CarriageInfo;
 import java.util.ArrayList;
 import java.util.Objects;
 
-public class SetVelocityCarriageAction extends CarriageAction<Float> {
+public final class SetVelocityCarriageAction extends CarriageAction<Float> {
 
     public SetVelocityCarriageAction(Float actionArgument) {
         super("SetVelocity", "...", actionArgument, CarriageCommand.getEmptyCommand());
@@ -16,7 +16,7 @@ public class SetVelocityCarriageAction extends CarriageAction<Float> {
     @Override
     public ArrayList<CarriageCommand<?>> toCommands(CarriageInfo carriageInfo) {
         ArrayList<CarriageCommand<?>> commands = new ArrayList<>();
-        CarriageCommand<Float> targetSpeedCommand = new CarriageCommand<>("target_speed");
+        CarriageCommand<Float> targetSpeedCommand = new CarriageCommand<>("target_speed", (byte) 0);
         targetSpeedCommand.setArgument(getActionArgument());
         commands.add(targetSpeedCommand);
         return commands;

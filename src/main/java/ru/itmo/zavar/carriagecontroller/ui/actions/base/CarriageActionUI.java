@@ -5,6 +5,6 @@ import javafx.scene.Node;
 import java.util.ResourceBundle;
 
 public interface CarriageActionUI {
-    void applyActionEventHandler(CarriageApplicationEnvironment carriageApplicationEnvironment);
+    void applyActionEventHandler(CarriageApplicationEnvironment environment);
     Node getActionNode(ResourceBundle resourceBundle);
 }

@@ -17,4 +17,5 @@ public final class CarriageInfo {
     private Float currentBSpeed;
     private Float currentPosition;
     private Byte currentStatus;
+    private Byte externalModuleStatus;
 }

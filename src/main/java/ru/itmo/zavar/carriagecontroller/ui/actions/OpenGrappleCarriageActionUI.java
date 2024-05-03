@@ -2,6 +2,7 @@ package ru.itmo.zavar.carriagecontroller.ui.actions;
 
 import javafx.scene.Node;
 import javafx.scene.control.Button;
+import ru.itmo.zavar.carriagecontroller.carriage.actions.ToggleGrappleCarriageAction;
 import ru.itmo.zavar.carriagecontroller.ui.actions.base.ActionUIComponent;
 import ru.itmo.zavar.carriagecontroller.ui.actions.base.CarriageActionUI;
 import ru.itmo.zavar.carriagecontroller.ui.actions.base.CarriageApplicationEnvironment;
@@ -9,19 +10,20 @@ import ru.itmo.zavar.carriagecontroller.ui.actions.base.CarriageApplicationEnvir
 import java.util.ResourceBundle;
 
 @ActionUIComponent
-public final class TestActionUI implements CarriageActionUI {
+public class OpenGrappleCarriageActionUI implements CarriageActionUI {
 
-    private final Button actionButton = new Button("Test");
+    private final Button actionButton = new Button();
 
     @Override
-    public void applyActionEventHandler(CarriageApplicationEnvironment carriageApplicationEnvironment) {
+    public void applyActionEventHandler(CarriageApplicationEnvironment environment) {
         this.actionButton.setOnMouseClicked(mouseEvent -> {
-            System.out.println(carriageApplicationEnvironment.getClient());
+            environment.getActionsTable().getItems().add(new ToggleGrappleCarriageAction(true));
         });
     }
 
     @Override
     public Node getActionNode(ResourceBundle resourceBundle) {
+        this.actionButton.setText(resourceBundle.getString("actions.openGrapple"));
         return this.actionButton;
     }
 }
