@@ -82,7 +82,7 @@ public final class MainController implements Initializable {
     @FXML
     private Circle circleStatus;
     @FXML
-    private Label labelStatus;
+    private Label labelStatus, currentActionLabel;
 
     private double minXCoordinate, maxXCoordinate, minYCoordinate, maxYCoordinate;
     private final HashMap<String, CarriagePoint> carriagePoints;
@@ -348,6 +348,7 @@ public final class MainController implements Initializable {
         return () -> {
             LinkedList<CarriageAction<?>> actions = new LinkedList<>(this.actionsTable.getItems());
             ActionRunner actionRunner = new ActionRunner(this.infoReceiver, this.commandSender, actions);
+            actionsTable.setMouseTransparent(true);
             if (stepRadioMenuItem.isSelected()) {
                 stepRadioMenuItem.setDisable(true);
                 nextStepButton.setDisable(true);
@@ -356,20 +357,47 @@ public final class MainController implements Initializable {
                 actionRunner.addEventListener(e -> {
                     if (e.equals(ActionRunner.ActionEvent.ACTION_COMPLETE))
                         nextStepButton.setDisable(false);
-                    if (e.equals(ActionRunner.ActionEvent.NEXT_ACTION))
+                    if (e.equals(ActionRunner.ActionEvent.NEXT_ACTION)) {
                         nextStepButton.setDisable(true);
+                    }
                     if (e.equals(ActionRunner.ActionEvent.TASK_COMPLETE)) {
                         nextStepButton.setDisable(true);
                         nextStepButton.setVisible(false);
                         stepRadioMenuItem.setDisable(false);
+                        actionRunner.removeEventListener("MainListenerStep");
                     }
-                }, "MainListener");
+                }, "MainListenerStep");
                 nextStepButton.setOnMouseClicked(mouseEvent -> {
                     if (mouseEvent.getButton().equals(MouseButton.PRIMARY)) {
                         actionRunner.step();
                     }
                 });
             }
+
+
+            actionRunner.addEventListener(e -> {
+                if (e.equals(ActionRunner.ActionEvent.NEXT_ACTION)) {
+                    Platform.runLater(() -> {
+                        actionsTable.getSelectionModel().setSelectionMode(SelectionMode.SINGLE);
+                        actionsTable.requestFocus();
+                        actionsTable.getSelectionModel().select(actionRunner.getCurrentAction());
+                        actionsTable.getFocusModel().focus(actionsTable.getSelectionModel().getSelectedIndex());
+                        currentActionLabel.setText(actionRunner.getCurrentAction().getActionName()
+                                + " " + actionRunner.getCurrentAction().getArgumentAsReadableString());
+                    });
+                }
+                if (e.equals(ActionRunner.ActionEvent.TASK_COMPLETE)) {
+                    Platform.runLater(() -> {
+                        actionsTable.setMouseTransparent(false);
+                        launchMenuItem.setDisable(false);
+                        currentActionLabel.setText("");
+                        actionsTable.getSelectionModel().clearSelection();
+                        actionRunner.removeEventListener("MainListener");
+                    });
+                }
+            }, "MainListener");
+
+            launchMenuItem.setDisable(true);
             actionRunner.runAllActions();
         };
     }

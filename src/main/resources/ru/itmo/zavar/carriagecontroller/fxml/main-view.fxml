@@ -78,5 +78,6 @@
          </padding>
       </HBox>
       <Button fx:id="nextStepButton" layoutX="637.0" layoutY="350.0" mnemonicParsing="false" text="%button.nextStep" visible="false" AnchorPane.bottomAnchor="230.0" AnchorPane.leftAnchor="590.0" AnchorPane.rightAnchor="310.0" AnchorPane.topAnchor="345.0" />
+      <Label fx:id="currentActionLabel" layoutX="10.0" layoutY="328.0" AnchorPane.bottomAnchor="255.0" AnchorPane.leftAnchor="10.0" AnchorPane.rightAnchor="750.0" AnchorPane.topAnchor="325.0" />
    </children>
 </AnchorPane>

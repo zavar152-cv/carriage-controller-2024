@@ -22,6 +22,8 @@ public final class ActionRunner {
     @Getter
     private boolean stepModeEnabled = false;
     private ActionEvent previousEvent;
+    @Getter
+    private CarriageAction<?> currentAction;
 
     public ActionRunner(InfoReceiver infoReceiver, CommandSender commandSender, LinkedList<CarriageAction<?>> actions) {
         this.infoReceiver = infoReceiver;
@@ -55,6 +57,7 @@ public final class ActionRunner {
 
     private void nextAction(LinkedList<CarriageAction<?>> actions, CommandSender commandSender) {
         CarriageAction<?> popped = actions.pop();
+        this.currentAction = popped;
         this.onEventListeners.forEach((s, onEventListener) -> {
             onEventListener.onEvent(ActionEvent.NEXT_ACTION);
         });
