@@ -13,6 +13,7 @@ import javafx.scene.control.*;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.VBox;
+import javafx.stage.Stage;
 import lombok.extern.log4j.Log4j2;
 import org.eclipse.paho.client.mqttv3.IMqttToken;
 import org.eclipse.paho.client.mqttv3.MqttException;
@@ -35,6 +36,8 @@ public final class ConnectionDialog extends Dialog<CarriageAsyncClient> {
         super.setTitle(resourceBundle.getString("dialog.connection.title"));
         super.setHeaderText(resourceBundle.getString("dialog.connection.headerText"));
         super.setGraphic(new ImageView(Objects.requireNonNull(AddPointDialog.class.getResource("/ru/itmo/zavar/carriagecontroller/img/connect.png")).toString()));
+        Stage stage = (Stage) super.getDialogPane().getScene().getWindow();
+        stage.getIcons().add(CarriageControllerApplication.getAppIcon());
         ButtonType saveButtonType = new ButtonType(resourceBundle.getString("dialog.connection.save"), ButtonBar.ButtonData.OK_DONE);
         super.getDialogPane().getButtonTypes().addAll(saveButtonType, ButtonType.CANCEL);
         Button connectButton = new Button(resourceBundle.getString("dialog.connection.connect"));

@@ -10,6 +10,8 @@ import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Dialog;
 import javafx.scene.image.ImageView;
+import javafx.stage.Stage;
+import ru.itmo.zavar.carriagecontroller.CarriageControllerApplication;
 import ru.itmo.zavar.carriagecontroller.ui.data.CoordinateBounds;
 
 import java.util.Objects;
@@ -26,6 +28,8 @@ public final class BoundsDialog extends Dialog<CoordinateBounds> {
         super.setTitle(resourceBundle.getString("dialog.bounds.title"));
         super.setHeaderText(resourceBundle.getString("dialog.bounds.headerText"));
         super.setGraphic(new ImageView(Objects.requireNonNull(BoundsDialog.class.getResource("/ru/itmo/zavar/carriagecontroller/img/bounds.png")).toString()));
+        Stage stage = (Stage) super.getDialogPane().getScene().getWindow();
+        stage.getIcons().add(CarriageControllerApplication.getAppIcon());
         ButtonType setButtonType = new ButtonType(resourceBundle.getString("dialog.bounds.set"), ButtonBar.ButtonData.OK_DONE);
         super.getDialogPane().getButtonTypes().addAll(setButtonType, ButtonType.CANCEL);
         Node node = super.getDialogPane().lookupButton(setButtonType);

@@ -14,6 +14,8 @@ import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Dialog;
 import javafx.scene.image.ImageView;
+import javafx.stage.Stage;
+import ru.itmo.zavar.carriagecontroller.CarriageControllerApplication;
 import ru.itmo.zavar.carriagecontroller.ui.data.CarriagePoint;
 
 import java.util.Objects;
@@ -30,6 +32,8 @@ public final class AddPointDialog extends Dialog<CarriagePoint> {
         super.setTitle(resourceBundle.getString("dialog.addPoint.title"));
         super.setHeaderText(resourceBundle.getString("dialog.addPoint.headerText"));
         super.setGraphic(new ImageView(Objects.requireNonNull(AddPointDialog.class.getResource("/ru/itmo/zavar/carriagecontroller/img/point.png")).toString()));
+        Stage stage = (Stage) super.getDialogPane().getScene().getWindow();
+        stage.getIcons().add(CarriageControllerApplication.getAppIcon());
         ButtonType addButtonType = new ButtonType(resourceBundle.getString("dialog.addPoint.add"), ButtonBar.ButtonData.OK_DONE);
         super.getDialogPane().getButtonTypes().addAll(addButtonType, ButtonType.CANCEL);
         Node node = super.getDialogPane().lookupButton(addButtonType);

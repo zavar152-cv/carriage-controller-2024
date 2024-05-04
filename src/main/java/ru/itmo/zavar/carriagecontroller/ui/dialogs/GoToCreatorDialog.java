@@ -12,6 +12,8 @@ import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Dialog;
 import javafx.scene.image.ImageView;
+import javafx.stage.Stage;
+import ru.itmo.zavar.carriagecontroller.CarriageControllerApplication;
 import ru.itmo.zavar.carriagecontroller.carriage.actions.GoToCarriageAction;
 import ru.itmo.zavar.carriagecontroller.ui.data.CarriagePoint;
 
@@ -28,6 +30,8 @@ public final class GoToCreatorDialog extends Dialog<GoToCarriageAction> {
         super.setTitle(resourceBundle.getString("dialog.goTo.title"));
         super.setHeaderText(resourceBundle.getString("dialog.goTo.headerText"));
         super.setGraphic(new ImageView(Objects.requireNonNull(GoToCreatorDialog.class.getResource("/ru/itmo/zavar/carriagecontroller/img/goTo.png")).toString()));
+        Stage stage = (Stage) super.getDialogPane().getScene().getWindow();
+        stage.getIcons().add(CarriageControllerApplication.getAppIcon());
         ButtonType addButtonType = new ButtonType(resourceBundle.getString("dialog.goTo.add"), ButtonBar.ButtonData.OK_DONE);
         super.getDialogPane().getButtonTypes().addAll(addButtonType, ButtonType.CANCEL);
         Node node = super.getDialogPane().lookupButton(addButtonType);

@@ -5,13 +5,13 @@ import com.dlsc.formsfx.model.structure.Form;
 import com.dlsc.formsfx.model.structure.Group;
 import com.dlsc.formsfx.view.renderer.FormRenderer;
 import javafx.beans.property.SimpleIntegerProperty;
-import javafx.beans.property.SimpleLongProperty;
 import javafx.scene.Node;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Dialog;
 import javafx.scene.image.ImageView;
-import ru.itmo.zavar.carriagecontroller.ui.data.CoordinateBounds;
+import javafx.stage.Stage;
+import ru.itmo.zavar.carriagecontroller.CarriageControllerApplication;
 
 import java.util.Objects;
 import java.util.ResourceBundle;
@@ -23,7 +23,9 @@ public final class GrapplePositionDialog extends Dialog<Integer> {
     public GrapplePositionDialog(ResourceBundle resourceBundle) {
         super.setTitle(resourceBundle.getString("dialog.grapplePosition.title"));
         super.setHeaderText(resourceBundle.getString("dialog.grapplePosition.headerText"));
-        super.setGraphic(new ImageView(Objects.requireNonNull(BoundsDialog.class.getResource("/ru/itmo/zavar/carriagecontroller/img/bounds.png")).toString()));
+        super.setGraphic(new ImageView(Objects.requireNonNull(BoundsDialog.class.getResource("/ru/itmo/zavar/carriagecontroller/img/grapplePosition.png")).toString()));
+        Stage stage = (Stage) super.getDialogPane().getScene().getWindow();
+        stage.getIcons().add(CarriageControllerApplication.getAppIcon());
         ButtonType setButtonType = new ButtonType(resourceBundle.getString("dialog.grapplePosition.set"), ButtonBar.ButtonData.OK_DONE);
         super.getDialogPane().getButtonTypes().addAll(setButtonType, ButtonType.CANCEL);
         Node node = super.getDialogPane().lookupButton(setButtonType);
@@ -31,7 +33,7 @@ public final class GrapplePositionDialog extends Dialog<Integer> {
 
         Form form = Form.of(Group.of(
                 Field.ofIntegerType(0)
-                        .bind(grapplePositionProperty)
+                        .bind(this.grapplePositionProperty)
                         .required(true)
                         .label(resourceBundle.getString("dialog.grapplePosition.position"))
                 ));
@@ -43,7 +45,7 @@ public final class GrapplePositionDialog extends Dialog<Integer> {
         super.setResultConverter(buttonType -> {
             if (buttonType.equals(setButtonType)) {
                 form.persist();
-                return grapplePositionProperty.get();
+                return this.grapplePositionProperty.get();
             }
             return null;
         });

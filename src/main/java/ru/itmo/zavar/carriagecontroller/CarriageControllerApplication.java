@@ -7,19 +7,32 @@ import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
+import javafx.scene.image.Image;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Priority;
 import javafx.stage.Stage;
+import javafx.stage.Window;
+import lombok.Getter;
 import ru.itmo.zavar.carriagecontroller.ui.MainController;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.ResourceBundle;
 
 public final class CarriageControllerApplication extends Application {
+
+    @Getter
+    private static final Image appIcon;
+
+    static {
+        appIcon = new Image(Objects.requireNonNull(
+                CarriageControllerApplication.class
+                        .getResourceAsStream("/ru/itmo/zavar/carriagecontroller/img/icon.png")));
+    }
+
     @Override
     public void start(Stage stage) throws IOException {
         ResourceBundle langBundle = ResourceBundle.getBundle("ru/itmo/zavar/carriagecontroller/lang/controller", Locale.getDefault());
@@ -34,6 +47,7 @@ public final class CarriageControllerApplication extends Application {
         stage.setTitle(langBundle.getString("title"));
         stage.setScene(scene);
         stage.setResizable(false);
+        stage.getIcons().add(appIcon);
         stage.show();
     }
 
@@ -46,6 +60,8 @@ public final class CarriageControllerApplication extends Application {
         alert.setTitle(resourceBundle.getString("dialog.warning.title"));
         alert.setHeaderText(resourceBundle.getString("dialog.warning.headerText"));
         alert.setContentText(content);
+        Stage stage = (Stage) alert.getDialogPane().getScene().getWindow();
+        stage.getIcons().add(appIcon);
         alert.showAndWait();
     }
 
@@ -78,6 +94,8 @@ public final class CarriageControllerApplication extends Application {
             expContent.add(textArea, 0, 1);
 
             alert.getDialogPane().setExpandableContent(expContent);
+            Stage stage = (Stage) alert.getDialogPane().getScene().getWindow();
+            stage.getIcons().add(appIcon);
             alert.showAndWait();
         });
     }
