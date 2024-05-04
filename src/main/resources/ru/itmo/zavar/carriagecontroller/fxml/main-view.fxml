@@ -6,6 +6,7 @@
 <?import javafx.scene.control.Menu?>
 <?import javafx.scene.control.MenuBar?>
 <?import javafx.scene.control.MenuItem?>
+<?import javafx.scene.control.RadioMenuItem?>
 <?import javafx.scene.control.Tab?>
 <?import javafx.scene.control.TabPane?>
 <?import javafx.scene.control.TableView?>
@@ -31,8 +32,6 @@
                            <children>
                               <Button fx:id="addPointButton" mnemonicParsing="false" text="%tapPane.actionsTab.addPoint" />
                               <Button fx:id="boundsButton" mnemonicParsing="false" text="%tapPane.actionsTab.setBounds" />
-                              <Button fx:id="launchButton" mnemonicParsing="false" text="%tapPane.actionsTab.launch" />
-                              <Button fx:id="connectButton" mnemonicParsing="false" text="%tapPane.actionsTab.connection" />
                            </children>
                         </VBox>
                         <TilePane fx:id="actionsTilePane" alignment="BASELINE_LEFT" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="150.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
@@ -53,14 +52,18 @@
       <TableView fx:id="actionsTable" layoutX="638.0" layoutY="24.0" prefHeight="200.0" prefWidth="200.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="700.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="25.0" />
       <MenuBar fx:id="menuBar" layoutY="2.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
         <menus>
-          <Menu mnemonicParsing="false" text="File">
+          <Menu fx:id="fileMenu" mnemonicParsing="false" text="%menubar.file">
             <items>
-              <MenuItem mnemonicParsing="false" text="Close" />
+              <MenuItem fx:id="saveMenuItem" mnemonicParsing="false" text="%menubar.file.save" />
+                  <MenuItem fx:id="openMenuItem" mnemonicParsing="false" text="%menubar.file.open" />
+                  <MenuItem fx:id="exitMenuItem" mnemonicParsing="false" text="%menubar.file.exit" />
             </items>
           </Menu>
-          <Menu mnemonicParsing="false" text="Edit">
+          <Menu fx:id="manageMenu" mnemonicParsing="false" text="%menubar.manage">
             <items>
-              <MenuItem mnemonicParsing="false" text="Delete" />
+              <MenuItem fx:id="launchMenuItem" disable="true" mnemonicParsing="false" text="%menubar.manage.launch" />
+                  <MenuItem fx:id="connectionMenuItem" mnemonicParsing="false" text="%menubar.manage.connection" />
+                  <RadioMenuItem fx:id="stepRadioMenuItem" mnemonicParsing="false" text="%menubar.manage.step" />
             </items>
           </Menu>
         </menus>
@@ -74,5 +77,6 @@
             <Insets left="10.0" />
          </padding>
       </HBox>
+      <Button fx:id="nextStepButton" layoutX="637.0" layoutY="350.0" mnemonicParsing="false" text="%button.nextStep" visible="false" AnchorPane.bottomAnchor="230.0" AnchorPane.leftAnchor="590.0" AnchorPane.rightAnchor="310.0" AnchorPane.topAnchor="345.0" />
    </children>
 </AnchorPane>

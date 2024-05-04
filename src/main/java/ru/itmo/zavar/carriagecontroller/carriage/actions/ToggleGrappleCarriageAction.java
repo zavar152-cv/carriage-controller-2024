@@ -1,11 +1,14 @@
 package ru.itmo.zavar.carriagecontroller.carriage.actions;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import lombok.NoArgsConstructor;
 import ru.itmo.zavar.carriagecontroller.carriage.net.InfoReceiver;
 import ru.itmo.zavar.carriagecontroller.mqtt.pojo.CarriageCommand;
 import ru.itmo.zavar.carriagecontroller.mqtt.pojo.CarriageInfo;
 
 import java.util.ArrayList;
 
+@NoArgsConstructor
 public final class ToggleGrappleCarriageAction extends CarriageAction<Boolean> {
 
     public ToggleGrappleCarriageAction(Boolean actionArgument) {

@@ -1,5 +1,6 @@
 package ru.itmo.zavar.carriagecontroller.carriage.actions;
 
+import lombok.NoArgsConstructor;
 import ru.itmo.zavar.carriagecontroller.carriage.net.InfoReceiver;
 import ru.itmo.zavar.carriagecontroller.mqtt.pojo.CarriageCommand;
 import ru.itmo.zavar.carriagecontroller.mqtt.pojo.CarriageInfo;
@@ -7,6 +8,7 @@ import ru.itmo.zavar.carriagecontroller.mqtt.pojo.CarriageInfo;
 import java.util.ArrayList;
 import java.util.Objects;
 
+@NoArgsConstructor
 public final class SetVelocityCarriageAction extends CarriageAction<Float> {
 
     public SetVelocityCarriageAction(Float actionArgument) {

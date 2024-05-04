@@ -10,7 +10,7 @@ import ru.itmo.zavar.carriagecontroller.ui.actions.base.CarriageApplicationEnvir
 import java.util.ResourceBundle;
 
 @ActionUIComponent
-public class OpenGrappleCarriageActionUI implements CarriageActionUI {
+public final class OpenGrappleCarriageActionUI implements CarriageActionUI {
 
     private final Button actionButton = new Button();
 

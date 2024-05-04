@@ -1,11 +1,13 @@
 package ru.itmo.zavar.carriagecontroller.carriage.actions;
 
+import lombok.NoArgsConstructor;
 import ru.itmo.zavar.carriagecontroller.carriage.net.InfoReceiver;
 import ru.itmo.zavar.carriagecontroller.mqtt.pojo.CarriageCommand;
 import ru.itmo.zavar.carriagecontroller.mqtt.pojo.CarriageInfo;
 
 import java.util.ArrayList;
 
+@NoArgsConstructor
 public final class GoToCarriageAction extends CarriageAction<Float[]> {
 
     public GoToCarriageAction(Float[] actionArgument) {

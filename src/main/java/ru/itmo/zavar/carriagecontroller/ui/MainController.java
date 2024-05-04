@@ -1,8 +1,13 @@
 package ru.itmo.zavar.carriagecontroller.ui;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
+import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.concurrent.Task;
+import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -18,6 +23,7 @@ import javafx.scene.paint.Paint;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Line;
 import javafx.scene.shape.Rectangle;
+import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import lombok.Setter;
 import lombok.extern.log4j.Log4j2;
@@ -37,14 +43,17 @@ import ru.itmo.zavar.carriagecontroller.ui.actions.base.CarriageActionUI;
 import ru.itmo.zavar.carriagecontroller.ui.actions.base.CarriageApplicationEnvironment;
 import ru.itmo.zavar.carriagecontroller.ui.data.CarriagePoint;
 import ru.itmo.zavar.carriagecontroller.ui.data.CoordinateBounds;
+import ru.itmo.zavar.carriagecontroller.ui.data.MapData;
 import ru.itmo.zavar.carriagecontroller.ui.dialogs.AddPointDialog;
 import ru.itmo.zavar.carriagecontroller.ui.dialogs.BoundsDialog;
 import ru.itmo.zavar.carriagecontroller.ui.dialogs.ConnectionDialog;
 
+import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
+import java.nio.file.Files;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -61,7 +70,11 @@ public final class MainController implements Initializable {
     @FXML
     private MenuBar menuBar;
     @FXML
-    private Button boundsButton, addPointButton, launchButton, connectButton;
+    private MenuItem saveMenuItem, openMenuItem, exitMenuItem, launchMenuItem, connectionMenuItem;
+    @FXML
+    private RadioMenuItem stepRadioMenuItem;
+    @FXML
+    private Button boundsButton, addPointButton, nextStepButton;
     @FXML
     private AnchorPane anchorPane;
     @FXML
@@ -85,6 +98,7 @@ public final class MainController implements Initializable {
     private Properties properties;
     private final Set<BeanDefinition> actionsBeanDefinition;
     private CarriageApplicationEnvironment environment;
+    private final FileChooser fileDialog = new FileChooser();
 
     public MainController() throws IOException {
         this.carriagePoints = new HashMap<>();
@@ -110,11 +124,11 @@ public final class MainController implements Initializable {
         this.scheduledExecutorService.scheduleAtFixedRate(timeoutChecker(resourceBundle), 0, Long.parseLong(this.properties.getProperty("info.timeout")), TimeUnit.MILLISECONDS);
         this.setCarriageRectanglePosition(0, this.minXCoordinate, this.maxXCoordinate);
         this.carriageRectangle.setVisible(false);
-        this.launchButton.setDisable(true);
+        this.launchMenuItem.setDisable(true);
         this.createStartAndEndPoints();
         this.addPointButton.setOnMouseClicked(this.onAddPointButtonClicked(resourceBundle));
         this.boundsButton.setOnMouseClicked(this.onBoundsButtonClicked(resourceBundle));
-        this.connectButton.setOnMouseClicked(this.onConnectButtonClicked(resourceBundle));
+        this.connectionMenuItem.setOnAction(this.onConnectButtonClicked(resourceBundle));
 
         TableColumn<CarriageAction<?>, String> nameColumn = new TableColumn<>(resourceBundle.getString("table.actions"));
         nameColumn.setCellValueFactory(new PropertyValueFactory<>("actionName"));
@@ -127,7 +141,7 @@ public final class MainController implements Initializable {
         argumentColumn.prefWidthProperty().bind(this.actionsTable.widthProperty().multiply(0.5));
         this.actionsTable.getColumns().add(argumentColumn);
 
-        this.launchButton.setOnMouseClicked(mouseEvent -> {
+        this.launchMenuItem.setOnAction(actionEvent -> {
             if (!this.actionsTable.getItems().isEmpty()) {
                 this.executorService.submit(this.programCreatorAndRunner());
             } else {
@@ -152,6 +166,76 @@ public final class MainController implements Initializable {
                 throw new RuntimeException(e);
             }
         });
+
+        this.saveMenuItem.setOnAction(actionEvent -> {
+            PolymorphicTypeValidator ptv = BasicPolymorphicTypeValidator.builder()
+                    .allowIfSubType("ru.itmo.zavar.carriagecontroller.carriage.actions")
+                    .allowIfSubType("java.util.LinkedList")
+                    .allowIfSubType("java.util.HashMap")
+                    .build();
+            ObjectMapper objectMapper = new ObjectMapper();
+            objectMapper.activateDefaultTyping(ptv, ObjectMapper.DefaultTyping.NON_FINAL);
+            String s;
+            try {
+                s = objectMapper.writeValueAsString(new MapData(this.carriagePoints, this.minXCoordinate,
+                        this.maxXCoordinate, this.minYCoordinate,
+                        this.maxYCoordinate, new LinkedList<>(this.actionsTable.getItems())));
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException(e);
+            }
+            this.fileDialog.setInitialFileName("mapData.json");
+            this.fileDialog.getExtensionFilters().addAll(
+                    new FileChooser.ExtensionFilter("JSON Files", "*.json*"));
+            File file = this.fileDialog.showSaveDialog(primaryStage);
+            if (file == null)
+                return;
+            try {
+                Files.write(file.toPath(), s.getBytes());
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        this.openMenuItem.setOnAction(actionEvent -> {
+            this.fileDialog.getExtensionFilters().addAll(
+                    new FileChooser.ExtensionFilter("JSON Files", "*.json*"));
+            File file = this.fileDialog.showOpenDialog(this.primaryStage);
+            if (file == null)
+                return;
+
+            PolymorphicTypeValidator ptv = BasicPolymorphicTypeValidator.builder()
+                    .allowIfSubType("ru.itmo.zavar.carriagecontroller.carriage.actions")
+                    .allowIfSubType("java.util.LinkedList")
+                    .allowIfSubType("java.util.HashMap")
+                    .build();
+
+            ObjectMapper objectMapper = new ObjectMapper();
+            objectMapper.activateDefaultTyping(ptv, ObjectMapper.DefaultTyping.NON_FINAL);
+            try {
+                MapData mapData = objectMapper.readValue(file, MapData.class);
+                this.minXCoordinate = mapData.getMinXCoordinate();
+                this.maxXCoordinate = mapData.getMaxXCoordinate();
+                this.minYCoordinate = mapData.getMinYCoordinate();
+                this.maxYCoordinate = mapData.getMaxYCoordinate();
+                this.actionsTable.getItems().setAll(mapData.getActions());
+                this.drewPoints.forEach((s1, circle) -> {
+                    this.anchorPane.getChildren().remove(circle);
+                });
+                this.drewPoints.clear();
+                this.carriagePoints.clear();
+                this.createStartAndEndPoints();
+                mapData.getCarriagePoints().forEach((s, carriagePoint) -> {
+                    if (!s.equals("Start") && !s.equals("End")) {
+                        this.carriagePoints.put(s, carriagePoint);
+                        this.drawPoint(s, carriagePoint.x(), Color.VIOLET);
+                    }
+                });
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+
+        });
+
     }
 
     private EventHandler<MouseEvent> onBoundsButtonClicked(ResourceBundle resourceBundle) {
@@ -165,64 +249,71 @@ public final class MainController implements Initializable {
                     this.maxXCoordinate = value.maxXCoordinate();
                     this.minYCoordinate = value.minYCoordinate();
                     this.maxYCoordinate = value.maxYCoordinate();
+                    this.drewPoints.forEach((s1, circle) -> {
+                        this.anchorPane.getChildren().remove(circle);
+                    });
+                    this.createStartAndEndPoints();
+                    drewPoints.forEach((s, circle) -> {
+                        if (!s.equals("Start") && !s.equals("End")) {
+                            this.drawPoint(s, carriagePoints.get(s).x(), Color.VIOLET);
+                        }
+                    });
                 });
             }
         };
     }
 
-    private EventHandler<MouseEvent> onConnectButtonClicked(ResourceBundle resourceBundle) {
-        return mouseEvent -> {
-            if (mouseEvent.getButton().equals(MouseButton.PRIMARY)) {
-                ConnectionDialog connectionDialog = new ConnectionDialog(this.executorService, resourceBundle, this.client, this.properties);
-                Optional<CarriageAsyncClient> carriageAsyncClient = connectionDialog.showAndWait();
-                carriageAsyncClient.ifPresent(newClient -> {
-                    if(!newClient.isConnected()) {
-                        this.labelStatus.setText(resourceBundle.getString("status.offline"));
-                        this.circleStatus.setFill(Color.RED);
+    private EventHandler<ActionEvent> onConnectButtonClicked(ResourceBundle resourceBundle) {
+        return actionEvent -> {
+            ConnectionDialog connectionDialog = new ConnectionDialog(this.executorService, resourceBundle, this.client, this.properties);
+            Optional<CarriageAsyncClient> carriageAsyncClient = connectionDialog.showAndWait();
+            carriageAsyncClient.ifPresent(newClient -> {
+                if (!newClient.isConnected()) {
+                    this.labelStatus.setText(resourceBundle.getString("status.offline"));
+                    this.circleStatus.setFill(Color.RED);
+                    this.infoReceiver.clearAllListeners();
+                    this.carriageRectangle.setVisible(false);
+                    this.launchMenuItem.setDisable(true);
+                    return;
+                }
+                if (this.isClientConnected())
+                    this.disconnectClient();
+                this.client = newClient;
+                this.environment.setClient(this.client);
+                this.client.addOnMessageArrived(this.onCarriageMessageArrived(), "MainController");
+                try {
+                    if (this.infoReceiver != null)
                         this.infoReceiver.clearAllListeners();
-                        this.carriageRectangle.setVisible(false);
-                        this.launchButton.setDisable(true);
-                        return;
-                    }
-                    if (this.isClientConnected())
-                        this.disconnectClient();
-                    this.client = newClient;
-                    this.environment.setClient(this.client);
-                    this.client.addOnMessageArrived(this.onCarriageMessageArrived(), "MainController");
-                    try {
-                        if (this.infoReceiver != null)
-                            this.infoReceiver.clearAllListeners();
-                        this.infoReceiver = new InfoReceiver(this.client);
-                        this.environment.setInfoReceiver(this.infoReceiver);
+                    this.infoReceiver = new InfoReceiver(this.client);
+                    this.environment.setInfoReceiver(this.infoReceiver);
 
-                        Task<Void> task = this.firstInfoArrived();
+                    Task<Void> task = this.firstInfoArrived();
 
-                        task.setOnRunning(workerStateEvent -> {
-                            this.labelStatus.setText(resourceBundle.getString("status.pinging"));
-                            this.circleStatus.setFill(Color.YELLOW);
-                        });
+                    task.setOnRunning(workerStateEvent -> {
+                        this.labelStatus.setText(resourceBundle.getString("status.pinging"));
+                        this.circleStatus.setFill(Color.YELLOW);
+                    });
 
-                        task.setOnSucceeded(workerStateEvent -> {
-                            this.infoReceiver.addCurrentPositionChangeListener(this.onCarriagePositionChange(), "MainPositionListener");
-                            this.commandSender = new CommandSender(this.client);
-                            this.environment.setCommandSender(this.commandSender);
-                            Float currentPosition = this.infoReceiver.getCurrentCarriageInfo().getCurrentPosition();
-                            this.setCarriageRectanglePosition(currentPosition, this.minXCoordinate, this.maxXCoordinate);
-                            this.carriageRectangle.setVisible(true);
-                            this.launchButton.setDisable(false);
-                            this.labelStatus.setText(resourceBundle.getString("status.online"));
-                            this.circleStatus.setFill(Color.GREEN);
-                        });
+                    task.setOnSucceeded(workerStateEvent -> {
+                        this.infoReceiver.addCurrentPositionChangeListener(this.onCarriagePositionChange(), "MainPositionListener");
+                        this.commandSender = new CommandSender(this.client);
+                        this.environment.setCommandSender(this.commandSender);
+                        Float currentPosition = this.infoReceiver.getCurrentCarriageInfo().getCurrentPosition();
+                        this.setCarriageRectanglePosition(currentPosition, this.minXCoordinate, this.maxXCoordinate);
+                        this.carriageRectangle.setVisible(true);
+                        this.launchMenuItem.setDisable(false);
+                        this.labelStatus.setText(resourceBundle.getString("status.online"));
+                        this.circleStatus.setFill(Color.GREEN);
+                    });
 
-                        task.setOnFailed(workerStateEvent -> carriageIsOffline(resourceBundle));
+                    task.setOnFailed(workerStateEvent -> carriageIsOffline(resourceBundle));
 
-                        this.executorService.submit(task);
+                    this.executorService.submit(task);
 
-                    } catch (MqttException | InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
-            }
+                } catch (MqttException | InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            });
         };
     }
 
@@ -257,11 +348,28 @@ public final class MainController implements Initializable {
         return () -> {
             LinkedList<CarriageAction<?>> actions = new LinkedList<>(this.actionsTable.getItems());
             ActionRunner actionRunner = new ActionRunner(this.infoReceiver, this.commandSender, actions);
-//                actionRunner.enableStepMode();
-//                actionRunner.addEventListener(e -> {
-//                    if (e.equals(ActionRunner.ActionEvent.ACTION_COMPLETE) && actionRunner.isStepModeEnabled())
-//                        actionRunner.step();
-//                }, "MainListener");
+            if (stepRadioMenuItem.isSelected()) {
+                stepRadioMenuItem.setDisable(true);
+                nextStepButton.setDisable(true);
+                nextStepButton.setVisible(true);
+                actionRunner.enableStepMode();
+                actionRunner.addEventListener(e -> {
+                    if (e.equals(ActionRunner.ActionEvent.ACTION_COMPLETE))
+                        nextStepButton.setDisable(false);
+                    if (e.equals(ActionRunner.ActionEvent.NEXT_ACTION))
+                        nextStepButton.setDisable(true);
+                    if (e.equals(ActionRunner.ActionEvent.TASK_COMPLETE)) {
+                        nextStepButton.setDisable(true);
+                        nextStepButton.setVisible(false);
+                        stepRadioMenuItem.setDisable(false);
+                    }
+                }, "MainListener");
+                nextStepButton.setOnMouseClicked(mouseEvent -> {
+                    if (mouseEvent.getButton().equals(MouseButton.PRIMARY)) {
+                        actionRunner.step();
+                    }
+                });
+            }
             actionRunner.runAllActions();
         };
     }
@@ -329,6 +437,21 @@ public final class MainController implements Initializable {
         this.drewPoints.put(name, point);
     }
 
+    private void clearAllPoints() {
+        this.drewPoints.forEach((s, circle) -> {
+            this.anchorPane.getChildren().remove(circle);
+        });
+        this.drewPoints.clear();
+        this.carriagePoints.clear();
+    }
+
+    private void clearPoint(String name) {
+        Circle circle = this.drewPoints.get(name);
+        this.anchorPane.getChildren().remove(circle);
+        this.drewPoints.remove(name);
+        this.carriagePoints.remove(name);
+    }
+
     private double map(double x, double inMin, double inMax, double outMin, double outMax) {
         return (x - inMin) * (outMax - outMin) / (inMax - inMin) + outMin;
     }
@@ -337,7 +460,7 @@ public final class MainController implements Initializable {
         if (this.isClientConnected()) {
             try {
                 this.client.close();
-                this.launchButton.setDisable(true);
+                this.launchMenuItem.setDisable(true);
                 log.info("Disconnected from {}...", this.client.getBrokerUrl());
             } catch (MqttException e) {
                 throw new RuntimeException(e);
