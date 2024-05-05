@@ -89,6 +89,7 @@ public final class MainController implements Initializable {
     private double minXCoordinate, maxXCoordinate, minYCoordinate, maxYCoordinate;
     private final HashMap<String, CarriagePoint> carriagePoints;
     private final HashMap<String, Circle> drewPoints;
+    private final HashMap<String, Tooltip> tooltips;
     private CarriageAsyncClient client;
     private final ExecutorService executorService;
     @Setter
@@ -105,6 +106,7 @@ public final class MainController implements Initializable {
     public MainController() throws IOException {
         this.carriagePoints = new HashMap<>();
         this.drewPoints = new HashMap<>();
+        this.tooltips = new HashMap<>();
         this.minXCoordinate = 0;
         this.maxXCoordinate = 3000;
         this.minYCoordinate = 0;
@@ -173,6 +175,19 @@ public final class MainController implements Initializable {
         this.exitMenuItem.setOnAction(actionEvent -> {
             this.primaryStage.fireEvent(
                     new WindowEvent(this.primaryStage, WindowEvent.WINDOW_CLOSE_REQUEST));
+        });
+
+        this.ropeLine.setOnMouseEntered(mouseEvent -> {
+            this.tooltips.forEach((s, tooltip) -> {
+                Circle circle = this.drewPoints.get(s);
+                tooltip.show(circle, this.primaryStage.getX() + circle.getCenterX(), this.primaryStage.getY() + circle.getCenterY());
+            });
+        });
+
+        this.ropeLine.setOnMouseExited(mouseEvent -> {
+            this.tooltips.forEach((s, tooltip) -> {
+                tooltip.hide();
+            });
         });
     }
 
@@ -287,7 +302,7 @@ public final class MainController implements Initializable {
                     return;
                 }
                 if (this.isClientConnected())
-                    this.disconnectClient(); //TODO remove listeners
+                    this.disconnectClient();
                 this.client = newClient;
                 this.environment.setClient(this.client);
                 this.client.addOnMessageArrived(this.onCarriageMessageArrived(), "MainController");
@@ -316,8 +331,11 @@ public final class MainController implements Initializable {
                         this.circleStatus.setFill(Color.GREEN);
                         this.updateCarriageInfoLabels(this.infoReceiver.getCurrentCarriageInfo());
                         this.infoReceiver.addCarriageInfoChangeListener(newValue ->
-                                Platform.runLater(() -> this.updateCarriageInfoLabels(newValue)),
+                                        Platform.runLater(() -> this.updateCarriageInfoLabels(newValue)),
                                 "MainInfoListenerLabels");
+                        this.actionsTable.setMouseTransparent(false);
+                        this.currentActionLabel.setText("");
+                        this.actionsTable.getSelectionModel().clearSelection();
                     });
 
                     task.setOnFailed(workerStateEvent -> carriageIsOffline(resourceBundle));
@@ -476,7 +494,7 @@ public final class MainController implements Initializable {
     }
 
     private void drawPoint(String name, double x) {
-        drawPoint(name, x, Color.BLACK);
+        this.drawPoint(name, x, Color.BLACK);
     }
 
     private void drawPoint(String name, double x, Paint fill) {
@@ -486,6 +504,17 @@ public final class MainController implements Initializable {
         point.setStroke(Paint.valueOf("black"));
         point.setCenterY(this.ropeLine.getLayoutY());
         point.setCenterX(mapped + this.ropeLine.getLayoutX());
+        Tooltip tooltip = new Tooltip("%s (%s)".formatted(name, x));
+
+        point.setOnMousePressed(mouseEvent -> {
+            tooltip.show(point, this.primaryStage.getX() + point.getCenterX(), this.primaryStage.getY() + point.getCenterY());
+        });
+
+        point.setOnMouseReleased(mouseEvent -> {
+            tooltip.hide();
+        });
+
+        this.tooltips.put(name, tooltip);
         this.anchorPane.getChildren().add(point);
         this.drewPoints.put(name, point);
     }
@@ -496,6 +525,7 @@ public final class MainController implements Initializable {
         });
         this.drewPoints.clear();
         this.carriagePoints.clear();
+        this.tooltips.clear();
     }
 
     private void clearPoint(String name) {
@@ -503,6 +533,7 @@ public final class MainController implements Initializable {
         this.anchorPane.getChildren().remove(circle);
         this.drewPoints.remove(name);
         this.carriagePoints.remove(name);
+        this.tooltips.remove(name);
     }
 
     private double map(double x, double inMin, double inMax, double outMin, double outMax) {
