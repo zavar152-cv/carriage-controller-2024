@@ -29,7 +29,7 @@ import java.util.concurrent.ExecutorService;
 public final class ConnectionDialog extends Dialog<CarriageAsyncClient> {
 
     private final SimpleStringProperty connectedStringProperty = new SimpleStringProperty();
-    private final SimpleStringProperty addressStringProperty = new SimpleStringProperty(); //tcp://localhost:25565
+    private final SimpleStringProperty addressStringProperty = new SimpleStringProperty();
     private CarriageAsyncClient newClient;
 
     public ConnectionDialog(ExecutorService executorService, ResourceBundle resourceBundle, CarriageAsyncClient client, Properties properties) {
@@ -39,19 +39,17 @@ public final class ConnectionDialog extends Dialog<CarriageAsyncClient> {
         Stage stage = (Stage) super.getDialogPane().getScene().getWindow();
         stage.getIcons().add(CarriageControllerApplication.getAppIcon());
         ButtonType saveButtonType = new ButtonType(resourceBundle.getString("dialog.connection.save"), ButtonBar.ButtonData.OK_DONE);
-        super.getDialogPane().getButtonTypes().addAll(saveButtonType, ButtonType.CANCEL);
+        super.getDialogPane().getButtonTypes().addAll(saveButtonType);
         Button connectButton = new Button(resourceBundle.getString("dialog.connection.connect"));
         connectButton.setDisable(true);
         Button disconnectButton = new Button(resourceBundle.getString("dialog.connection.disconnect"));
         disconnectButton.setDisable(true);
-        Node saveNode = super.getDialogPane().lookupButton(saveButtonType);
-        saveNode.setDisable(true);
 
         this.connectedStringProperty.set((client != null && client.isConnected()) ?
                 resourceBundle.getString("dialog.connection.connected") :
                 resourceBundle.getString("dialog.connection.notConnected"));
 
-        this.addressStringProperty.set(client != null ? client.getBrokerUrl() : "");
+        this.addressStringProperty.set(client != null ? client.getBrokerUrl() : properties.getProperty("mqtt.defaultUrl"));
 
         Form form = Form.of(Group.of(
                 Field.ofStringType(this.connectedStringProperty)
@@ -86,7 +84,6 @@ public final class ConnectionDialog extends Dialog<CarriageAsyncClient> {
                 connectTask.setOnSucceeded(workerStateEvent -> {
                     log.info("Connected to {}", addressStringProperty.get());
                     this.newClient = connectTask.getValue();
-                    saveNode.setDisable(false);
                     disconnectButton.setDisable(false);
                     connectButton.disableProperty().unbind();
                     connectButton.setDisable(true);
@@ -116,7 +113,6 @@ public final class ConnectionDialog extends Dialog<CarriageAsyncClient> {
                     this.newClient.close();
                     disconnectButton.setDisable(true);
                     connectButton.setDisable(false);
-                    saveNode.setDisable(false);
                     connectButton.disableProperty().bind(form.validProperty().not());
                     this.connectedStringProperty.set(resourceBundle.getString("dialog.connection.notConnected"));
                     log.info("Disconnected from {}...", this.addressStringProperty.get());
@@ -130,16 +126,6 @@ public final class ConnectionDialog extends Dialog<CarriageAsyncClient> {
         super.setResultConverter(buttonType -> {
             if (buttonType.equals(saveButtonType)) {
                 return this.newClient;
-            } else if (buttonType.equals(ButtonType.CANCEL)) {
-                if (this.newClient != null && this.newClient.isConnected()) {
-                    try {
-                        this.newClient.close();
-                    } catch (MqttException e) {
-                        throw new RuntimeException(e);
-                    }
-                    log.info("Disconnected from {}...", addressStringProperty.get());
-                }
-                return null;
             }
             return null;
         });

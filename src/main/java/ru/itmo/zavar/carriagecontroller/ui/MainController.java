@@ -153,8 +153,8 @@ public final class MainController implements Initializable {
             }
         });
 
-        this.environment = new CarriageApplicationEnvironment(actionsTable, carriagePoints, executorService, client,
-                infoReceiver, commandSender, properties, resourceBundle);
+        this.environment = new CarriageApplicationEnvironment(this.actionsTable, this.carriagePoints, this.executorService, this.client,
+                this.infoReceiver, this.commandSender, this.properties, resourceBundle);
 
         this.actionsBeanDefinition.forEach(beanDefinition -> {
             Class<?> c;
@@ -301,8 +301,6 @@ public final class MainController implements Initializable {
                     this.launchMenuItem.setDisable(true);
                     return;
                 }
-                if (this.isClientConnected())
-                    this.disconnectClient();
                 this.client = newClient;
                 this.environment.setClient(this.client);
                 this.client.addOnMessageArrived(this.onCarriageMessageArrived(), "MainController");
