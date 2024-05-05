@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
 import javafx.application.Platform;
+import javafx.beans.binding.Bindings;
+import javafx.beans.property.ReadOnlyIntegerProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.concurrent.Task;
 import javafx.event.ActionEvent;
@@ -15,8 +17,7 @@ import javafx.geometry.Side;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
-import javafx.scene.input.MouseButton;
-import javafx.scene.input.MouseEvent;
+import javafx.scene.input.*;
 import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.TilePane;
 import javafx.scene.paint.Color;
@@ -189,6 +190,37 @@ public final class MainController implements Initializable {
             this.tooltips.forEach((s, tooltip) -> {
                 tooltip.hide();
             });
+        });
+
+        MenuItem upMenuItem = new MenuItem(resourceBundle.getString("table.contextmenu.up"));
+        MenuItem downMenuItem = new MenuItem(resourceBundle.getString("table.contextmenu.down"));
+        this.actionsTable.setRowFactory(tv -> {
+            TableRow<CarriageAction<?>> row = new TableRow<>();
+            row.setOnMouseClicked(event -> {
+                if (!row.isEmpty()) {
+                    ContextMenu menu = new ContextMenu();
+                    menu.setAutoHide(true);
+                    menu.getItems().addAll(upMenuItem, downMenuItem);
+                    menu.show(row, this.primaryStage.getX() + event.getSceneX(), this.primaryStage.getY() + event.getSceneY());
+                }
+            });
+            return row;
+        });
+        ReadOnlyIntegerProperty selectedIndex = this.actionsTable.getSelectionModel().selectedIndexProperty();
+        upMenuItem.disableProperty().bind(selectedIndex.lessThanOrEqualTo(0));
+        downMenuItem.disableProperty().bind(Bindings.createBooleanBinding(() -> {
+            int index = selectedIndex.get();
+            return index < 0 || index + 1 >= this.actionsTable.getItems().size();
+        }, selectedIndex, this.actionsTable.getItems()));
+        upMenuItem.setOnAction(evt -> {
+            int index = this.actionsTable.getSelectionModel().getSelectedIndex();
+            this.actionsTable.getItems().add(index - 1, this.actionsTable.getItems().remove(index));
+            this.actionsTable.getSelectionModel().clearAndSelect(index - 1);
+        });
+        downMenuItem.setOnAction(evt -> {
+            int index = this.actionsTable.getSelectionModel().getSelectedIndex();
+            this.actionsTable.getItems().add(index + 1, this.actionsTable.getItems().remove(index));
+            this.actionsTable.getSelectionModel().clearAndSelect(index + 1);
         });
     }
 
