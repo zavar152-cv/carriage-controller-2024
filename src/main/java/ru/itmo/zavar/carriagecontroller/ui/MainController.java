@@ -11,6 +11,7 @@ import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
+import javafx.geometry.Side;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
@@ -98,7 +99,7 @@ public final class MainController implements Initializable {
     private final ScheduledExecutorService scheduledExecutorService;
     private InfoReceiver infoReceiver;
     private CommandSender commandSender;
-    private Properties properties;
+    private final Properties properties;
     private final Set<BeanDefinition> actionsBeanDefinition;
     private CarriageApplicationEnvironment environment;
     private final FileChooser fileDialog = new FileChooser();
@@ -107,14 +108,14 @@ public final class MainController implements Initializable {
         this.carriagePoints = new HashMap<>();
         this.drewPoints = new HashMap<>();
         this.tooltips = new HashMap<>();
-        this.minXCoordinate = 0;
-        this.maxXCoordinate = 3000;
-        this.minYCoordinate = 0;
-        this.maxYCoordinate = 100;
         this.executorService = Executors.newCachedThreadPool();
         this.scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
         this.properties = new Properties();
         this.properties.load(Objects.requireNonNull(MainController.class.getResource("/ru/itmo/zavar/carriagecontroller/settings.properties")).openStream());
+        this.minXCoordinate = Double.parseDouble(this.properties.getProperty("map.defaultMinX"));
+        this.maxXCoordinate = Double.parseDouble(this.properties.getProperty("map.defaultMaxX"));
+        this.minYCoordinate = Double.parseDouble(this.properties.getProperty("map.defaultMinY"));
+        this.maxYCoordinate = Double.parseDouble(this.properties.getProperty("map.defaultMaxY"));
         ClassPathScanningCandidateComponentProvider provider = new ClassPathScanningCandidateComponentProvider(false);
         provider.addIncludeFilter(new AnnotationTypeFilter(ActionUIComponent.class));
         this.actionsBeanDefinition = provider.findCandidateComponents("ru.itmo.zavar.carriagecontroller.ui.actions");
@@ -129,7 +130,7 @@ public final class MainController implements Initializable {
         this.setCarriageRectanglePosition(0, this.minXCoordinate, this.maxXCoordinate);
         this.carriageRectangle.setVisible(false);
         this.launchMenuItem.setDisable(true);
-        this.createStartAndEndPoints();
+        this.createStartAndEndPoints(resourceBundle);
         this.addPointButton.setOnMouseClicked(this.onAddPointButtonClicked(resourceBundle));
         this.boundsButton.setOnMouseClicked(this.onBoundsButtonClicked(resourceBundle));
         this.connectionMenuItem.setOnAction(this.onConnectButtonClicked(resourceBundle));
@@ -171,7 +172,7 @@ public final class MainController implements Initializable {
             }
         });
         this.saveMenuItem.setOnAction(this.onSaveMenuItem());
-        this.openMenuItem.setOnAction(this.onOpenMenuItem());
+        this.openMenuItem.setOnAction(this.onOpenMenuItem(resourceBundle));
         this.exitMenuItem.setOnAction(actionEvent -> {
             this.primaryStage.fireEvent(
                     new WindowEvent(this.primaryStage, WindowEvent.WINDOW_CLOSE_REQUEST));
@@ -222,7 +223,7 @@ public final class MainController implements Initializable {
         };
     }
 
-    private EventHandler<ActionEvent> onOpenMenuItem() {
+    private EventHandler<ActionEvent> onOpenMenuItem(ResourceBundle resourceBundle) {
         return actionEvent -> {
             this.fileDialog.getExtensionFilters().addAll(
                     new FileChooser.ExtensionFilter("JSON Files", "*.json*"));
@@ -250,11 +251,11 @@ public final class MainController implements Initializable {
                 });
                 this.drewPoints.clear();
                 this.carriagePoints.clear();
-                this.createStartAndEndPoints();
+                this.createStartAndEndPoints(resourceBundle);
                 mapData.getCarriagePoints().forEach((s, carriagePoint) -> {
-                    if (!s.equals("Start") && !s.equals("End")) {
+                    if (!s.equals(this.properties.getProperty("map.defaultStartName")) && !s.equals(this.properties.getProperty("map.defaultEndName"))) {
                         this.carriagePoints.put(s, carriagePoint);
-                        this.drawPoint(s, carriagePoint.x(), Color.VIOLET);
+                        this.drawPoint(s, carriagePoint.x(), Color.VIOLET, resourceBundle);
                     }
                 });
             } catch (IOException e) {
@@ -277,10 +278,10 @@ public final class MainController implements Initializable {
                     this.drewPoints.forEach((s1, circle) -> {
                         this.anchorPane.getChildren().remove(circle);
                     });
-                    this.createStartAndEndPoints();
+                    this.createStartAndEndPoints(resourceBundle);
                     drewPoints.forEach((s, circle) -> {
-                        if (!s.equals("Start") && !s.equals("End")) {
-                            this.drawPoint(s, carriagePoints.get(s).x(), Color.VIOLET);
+                        if (!s.equals(this.properties.getProperty("map.defaultStartName")) && !s.equals(this.properties.getProperty("map.defaultEndName"))) {
+                            this.drawPoint(s, carriagePoints.get(s).x(), Color.VIOLET, resourceBundle);
                         }
                     });
                 });
@@ -378,7 +379,7 @@ public final class MainController implements Initializable {
 
     private Runnable timeoutChecker(ResourceBundle resourceBundle) {
         return () -> {
-            if (System.currentTimeMillis() - this.lastMessageArrivedTime > 5000 && isClientConnected() && this.infoReceiver.isReady()) {
+            if (System.currentTimeMillis() - this.lastMessageArrivedTime > 2000 && isClientConnected() && this.infoReceiver.isReady()) {
                 this.lastMessageArrivedTime = 0;
                 Platform.runLater(() -> this.carriageIsOffline(resourceBundle));
             }
@@ -390,8 +391,8 @@ public final class MainController implements Initializable {
             LinkedList<CarriageAction<?>> actions = new LinkedList<>(this.actionsTable.getItems());
             ActionRunner actionRunner = new ActionRunner(this.infoReceiver, this.commandSender, actions);
             this.actionsTable.setMouseTransparent(true);
+            this.stepRadioMenuItem.setDisable(true);
             if (this.stepRadioMenuItem.isSelected()) {
-                this.stepRadioMenuItem.setDisable(true);
                 this.nextStepButton.setDisable(true);
                 this.nextStepButton.setVisible(true);
                 actionRunner.enableStepMode();
@@ -431,6 +432,7 @@ public final class MainController implements Initializable {
                     Platform.runLater(() -> {
                         this.actionsTable.setMouseTransparent(false);
                         this.launchMenuItem.setDisable(false);
+                        this.stepRadioMenuItem.setDisable(false);
                         this.currentActionLabel.setText("");
                         this.actionsTable.getSelectionModel().clearSelection();
                         actionRunner.removeEventListener("MainListener");
@@ -457,14 +459,14 @@ public final class MainController implements Initializable {
         };
     }
 
-    private void createStartAndEndPoints() {
-        CarriagePoint start = new CarriagePoint("Start", this.minXCoordinate, this.minYCoordinate);
+    private void createStartAndEndPoints(ResourceBundle resourceBundle) {
+        CarriagePoint start = new CarriagePoint(this.properties.getProperty("map.defaultStartName"), this.minXCoordinate, this.minYCoordinate);
         this.carriagePoints.put(start.name(), start);
-        this.drawPoint(start.name(), start.x(), Color.ORANGE);
+        this.drawPoint(start.name(), start.x(), Color.ORANGE, resourceBundle);
 
-        CarriagePoint end = new CarriagePoint("End", this.maxXCoordinate, this.minYCoordinate);
+        CarriagePoint end = new CarriagePoint(this.properties.getProperty("map.defaultEndName"), this.maxXCoordinate, this.minYCoordinate);
         this.carriagePoints.put(end.name(), end);
-        this.drawPoint(end.name(), end.x(), Color.ORANGE);
+        this.drawPoint(end.name(), end.x(), Color.ORANGE, resourceBundle);
     }
 
     private EventHandler<MouseEvent> onAddPointButtonClicked(ResourceBundle resourceBundle) {
@@ -475,7 +477,7 @@ public final class MainController implements Initializable {
                 Optional<CarriagePoint> carriagePoint = addPointDialog.showAndWait();
                 carriagePoint.ifPresent(value -> {
                     this.carriagePoints.put(value.name(), value);
-                    this.drawPoint(value.name(), value.x(), Color.VIOLET);
+                    this.drawPoint(value.name(), value.x(), Color.VIOLET, resourceBundle);
                 });
             }
         };
@@ -491,11 +493,11 @@ public final class MainController implements Initializable {
         this.carriageRectangle.setLayoutX(mapped + this.ropeLine.getLayoutX() - this.carriageRectangle.getWidth() / 2);
     }
 
-    private void drawPoint(String name, double x) {
-        this.drawPoint(name, x, Color.BLACK);
+    private void drawPoint(String name, double x, ResourceBundle resourceBundle) {
+        this.drawPoint(name, x, Color.BLACK, resourceBundle);
     }
 
-    private void drawPoint(String name, double x, Paint fill) {
+    private void drawPoint(String name, double x, Paint fill, ResourceBundle resourceBundle) {
         double mapped = this.map(x, this.minXCoordinate, this.maxXCoordinate, this.ropeLine.getStartX(), this.ropeLine.getEndX());
         Circle point = new Circle(5, fill);
         point.setStrokeWidth(1);
@@ -503,13 +505,22 @@ public final class MainController implements Initializable {
         point.setCenterY(this.ropeLine.getLayoutY());
         point.setCenterX(mapped + this.ropeLine.getLayoutX());
         Tooltip tooltip = new Tooltip("%s (%s)".formatted(name, x));
-
         point.setOnMousePressed(mouseEvent -> {
-            tooltip.show(point, this.primaryStage.getX() + point.getCenterX(), this.primaryStage.getY() + point.getCenterY());
+            if (mouseEvent.getButton().equals(MouseButton.PRIMARY))
+                tooltip.show(point, this.primaryStage.getX() + point.getCenterX(), this.primaryStage.getY() + point.getCenterY());
+            if (mouseEvent.getButton().equals(MouseButton.SECONDARY) && !name.equals(this.properties.getProperty("map.defaultStartName")) && !name.equals(this.properties.getProperty("map.defaultEndName"))) {
+                MenuItem deleteMenuItem = new MenuItem(resourceBundle.getString("contextmenu.delete"));
+                deleteMenuItem.setOnAction(actionEvent -> this.clearPoint(name));
+                ContextMenu menu = new ContextMenu();
+                menu.setAutoHide(true);
+                menu.getItems().addAll(deleteMenuItem);
+                menu.show(point, this.primaryStage.getX() + point.getCenterX(), this.primaryStage.getY() + point.getCenterY());
+            }
         });
 
         point.setOnMouseReleased(mouseEvent -> {
-            tooltip.hide();
+            if (mouseEvent.getButton().equals(MouseButton.PRIMARY))
+                tooltip.hide();
         });
 
         this.tooltips.put(name, tooltip);
