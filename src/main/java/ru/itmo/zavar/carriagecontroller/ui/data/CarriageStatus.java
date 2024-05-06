@@ -8,5 +8,6 @@ public enum CarriageStatus {
     MOVING_STATUS,
     ON_LOW_SPEED_STATUS,
     ON_PREPARE_SPEED_STATUS,
-    ERROR_STATUS
+    ERROR_STATUS,
+    MANUAL_MODE
 }

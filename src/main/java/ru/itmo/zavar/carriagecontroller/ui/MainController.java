@@ -38,6 +38,7 @@ import org.springframework.core.type.filter.AnnotationTypeFilter;
 import ru.itmo.zavar.carriagecontroller.CarriageControllerApplication;
 import ru.itmo.zavar.carriagecontroller.carriage.ActionRunner;
 import ru.itmo.zavar.carriagecontroller.carriage.actions.CarriageAction;
+import ru.itmo.zavar.carriagecontroller.carriage.actions.ModeCarriageAction;
 import ru.itmo.zavar.carriagecontroller.carriage.net.CommandSender;
 import ru.itmo.zavar.carriagecontroller.carriage.net.InfoReceiver;
 import ru.itmo.zavar.carriagecontroller.mqtt.CarriageAsyncClient;
@@ -74,7 +75,7 @@ public final class MainController implements Initializable {
     @FXML
     private MenuItem saveMenuItem, openMenuItem, exitMenuItem, launchMenuItem, connectionMenuItem;
     @FXML
-    private RadioMenuItem stepRadioMenuItem;
+    private RadioMenuItem stepRadioMenuItem, modeRadioMenuItem;
     @FXML
     private Button boundsButton, addPointButton, nextStepButton;
     @FXML
@@ -86,7 +87,7 @@ public final class MainController implements Initializable {
     @FXML
     private Label labelStatus, currentActionLabel, directionLabel, targetSpeedLabel,
             targetPositionLabel, currentASpeedLabel, currentBSpeedLabel, currentPositionLabel,
-            currentStatusLabel, externalModuleStatusLabel;
+            currentStatusLabel, externalModuleStatusLabel, currentModeLabel;
 
     private double minXCoordinate, maxXCoordinate, minYCoordinate, maxYCoordinate;
     private final HashMap<String, CarriagePoint> carriagePoints;
@@ -148,7 +149,9 @@ public final class MainController implements Initializable {
         this.actionsTable.getColumns().add(argumentColumn);
 
         this.launchMenuItem.setOnAction(actionEvent -> {
-            if (!this.actionsTable.getItems().isEmpty()) {
+            if (this.modeRadioMenuItem.isSelected()) {
+                CarriageControllerApplication.showWarningDialog(resourceBundle, resourceBundle.getString("dialog.warning.manual"));
+            } else if (!this.actionsTable.getItems().isEmpty()) {
                 this.executorService.submit(this.programCreatorAndRunner());
             } else {
                 CarriageControllerApplication.showWarningDialog(resourceBundle, resourceBundle.getString("dialog.warning.emptyTable"));
@@ -179,6 +182,35 @@ public final class MainController implements Initializable {
                     new WindowEvent(this.primaryStage, WindowEvent.WINDOW_CLOSE_REQUEST));
         });
 
+        this.modeRadioMenuItem.disableProperty().bindBidirectional(this.launchMenuItem.disableProperty());
+
+        this.currentModeLabel.setText(resourceBundle.getString("mode.auto"));
+        this.modeRadioMenuItem.setOnAction(actionEvent -> {
+            LinkedList<CarriageAction<?>> actions = new LinkedList<>();
+            ModeCarriageAction modeCarriageAction = new ModeCarriageAction(this.modeRadioMenuItem.isSelected());
+            actions.add(modeCarriageAction);
+            ActionRunner actionRunner = new ActionRunner(this.infoReceiver, this.commandSender, actions);
+            actionRunner.addEventListener(e -> {
+                if (e.equals(ActionRunner.ActionEvent.TASK_COMPLETE)) {
+                    this.modeRadioMenuItem.setDisable(false);
+                    Platform.runLater(() -> {
+                        this.currentActionLabel.setText("");
+                        if (this.modeRadioMenuItem.isSelected())
+                            this.currentModeLabel.setText(resourceBundle.getString("mode.manual"));
+                        else
+                            this.currentModeLabel.setText(resourceBundle.getString("mode.auto"));
+                    });
+                }
+            }, "ModeActionRunnerListener");
+            this.executorService.submit(() -> {
+                Platform.runLater(() -> {
+                    this.currentActionLabel.setText(modeCarriageAction.getArgumentAsReadableString());
+                });
+                this.modeRadioMenuItem.setDisable(true);
+                actionRunner.runAllActions();
+            });
+        });
+
         this.ropeLine.setOnMouseEntered(mouseEvent -> {
             this.tooltips.forEach((s, tooltip) -> {
                 Circle circle = this.drewPoints.get(s);
@@ -194,13 +226,14 @@ public final class MainController implements Initializable {
 
         MenuItem upMenuItem = new MenuItem(resourceBundle.getString("table.contextmenu.up"));
         MenuItem downMenuItem = new MenuItem(resourceBundle.getString("table.contextmenu.down"));
+        MenuItem deleteMenuItem = new MenuItem(resourceBundle.getString("table.contextmenu.delete"));
         this.actionsTable.setRowFactory(tv -> {
             TableRow<CarriageAction<?>> row = new TableRow<>();
             row.setOnMouseClicked(event -> {
                 if (!row.isEmpty()) {
                     ContextMenu menu = new ContextMenu();
                     menu.setAutoHide(true);
-                    menu.getItems().addAll(upMenuItem, downMenuItem);
+                    menu.getItems().addAll(upMenuItem, downMenuItem, deleteMenuItem);
                     menu.show(row, this.primaryStage.getX() + event.getSceneX(), this.primaryStage.getY() + event.getSceneY());
                 }
             });
@@ -221,6 +254,10 @@ public final class MainController implements Initializable {
             int index = this.actionsTable.getSelectionModel().getSelectedIndex();
             this.actionsTable.getItems().add(index + 1, this.actionsTable.getItems().remove(index));
             this.actionsTable.getSelectionModel().clearAndSelect(index + 1);
+        });
+        deleteMenuItem.setOnAction(actionEvent -> {
+            int index = this.actionsTable.getSelectionModel().getSelectedIndex();
+            this.actionsTable.getItems().remove(index);
         });
     }
 
@@ -316,6 +353,10 @@ public final class MainController implements Initializable {
                             this.drawPoint(s, carriagePoints.get(s).x(), Color.VIOLET, resourceBundle);
                         }
                     });
+                    if (this.isClientConnected()) {
+                        Float currentPosition = this.infoReceiver.getCurrentCarriageInfo().getCurrentPosition();
+                        this.setCarriageRectanglePosition(currentPosition, this.minXCoordinate, this.maxXCoordinate);
+                    }
                 });
             }
         };
@@ -520,9 +561,11 @@ public final class MainController implements Initializable {
     }
 
     private void setCarriageRectanglePosition(double position, double minBounds, double maxBounds) {
-        double mapped = this.map(position, minBounds, maxBounds, this.ropeLine.getStartX(), this.ropeLine.getEndX());
-        this.carriageRectangle.setLayoutY(this.ropeLine.getLayoutY());
-        this.carriageRectangle.setLayoutX(mapped + this.ropeLine.getLayoutX() - this.carriageRectangle.getWidth() / 2);
+        Platform.runLater(() -> {
+            double mapped = this.map(position, minBounds, maxBounds, this.ropeLine.getStartX(), this.ropeLine.getEndX());
+            this.carriageRectangle.setLayoutY(this.ropeLine.getLayoutY());
+            this.carriageRectangle.setLayoutX(mapped + this.ropeLine.getLayoutX() - this.carriageRectangle.getWidth() / 2);
+        });
     }
 
     private void drawPoint(String name, double x, ResourceBundle resourceBundle) {

@@ -6,5 +6,6 @@ public enum ExternalModuleStatus {
     CHANGE_GRAPPLE_POSITION,
     ON_GRAPPLE_POSITION,
     TOGGLING,
-    TOGGLED
+    TOGGLED,
+    MANUAL
 }

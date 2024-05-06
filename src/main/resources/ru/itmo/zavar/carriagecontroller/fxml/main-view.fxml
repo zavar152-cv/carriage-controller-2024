@@ -81,6 +81,7 @@
               <MenuItem fx:id="launchMenuItem" disable="true" mnemonicParsing="false" text="%menubar.manage.launch" />
                   <MenuItem fx:id="connectionMenuItem" mnemonicParsing="false" text="%menubar.manage.connection" />
                   <RadioMenuItem fx:id="stepRadioMenuItem" mnemonicParsing="false" text="%menubar.manage.step" />
+                  <RadioMenuItem fx:id="modeRadioMenuItem" disable="true" mnemonicParsing="false" text="%menubar.manage.mode" />
             </items>
           </Menu>
         </menus>
@@ -95,6 +96,7 @@
          </padding>
       </HBox>
       <Button fx:id="nextStepButton" layoutX="637.0" layoutY="350.0" mnemonicParsing="false" text="%button.nextStep" visible="false" AnchorPane.bottomAnchor="230.0" AnchorPane.leftAnchor="590.0" AnchorPane.rightAnchor="310.0" AnchorPane.topAnchor="345.0" />
-      <Label fx:id="currentActionLabel" layoutX="10.0" layoutY="328.0" AnchorPane.bottomAnchor="255.0" AnchorPane.leftAnchor="10.0" AnchorPane.rightAnchor="750.0" AnchorPane.topAnchor="325.0" />
+      <Label fx:id="currentModeLabel" layoutX="10.0" layoutY="328.0" AnchorPane.bottomAnchor="255.0" AnchorPane.leftAnchor="10.0" AnchorPane.rightAnchor="750.0" AnchorPane.topAnchor="325.0" />
+      <Label fx:id="currentActionLabel" layoutX="10.0" layoutY="300.0" AnchorPane.bottomAnchor="280.0" AnchorPane.leftAnchor="10.0" AnchorPane.rightAnchor="750.0" AnchorPane.topAnchor="300.0" />
    </children>
 </AnchorPane>
